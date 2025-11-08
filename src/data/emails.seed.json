@@ -76,6 +76,208 @@
     "features": [],
     "explanation": "This is a legitimate email. It comes from Netflix's official domain structure, provides clear subscription information, and links to the official Netflix website.",
     "difficulty": "easy"
+  },
+  {
+    "subject": "Suspicious Activity Detected - Action Required",
+    "from_name": "PayPal Security",
+    "from_email": "security@paypal-account-verify.com",
+    "body_html": "Hello,\n\nWe noticed a login attempt from an unrecognized device. For your security, we've temporarily restricted your account.\n\nTo restore access, please verify your identity by clicking here: bit.ly/paypal-verify-now\n\nIf you don't verify within 48 hours, your account will be permanently closed.\n\nPayPal Security Team",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (paypal-account-verify.com)",
+      "Shortened URL (bit.ly)",
+      "Urgent language with threat",
+      "Request to click link to verify"
+    ],
+    "explanation": "This is a phishing email. The domain is not PayPal's official domain, uses a shortened URL (red flag), and threatens account closure. Legitimate companies never ask you to verify via email links.",
+    "difficulty": "medium"
+  },
+  {
+    "subject": "Your Apple ID was used to sign in",
+    "from_name": "Apple",
+    "from_email": "noreply@apple.com",
+    "body_html": "Hello,\n\nYour Apple ID was used to sign in to iCloud on a new device.\n\nDevice: iPhone 15 Pro\nLocation: San Francisco, CA\nTime: January 15, 2025 at 2:34 PM PST\n\nIf this was you, no action is needed.\n\nIf you don't recognize this activity, you can secure your account at: https://appleid.apple.com\n\nThanks,\nApple",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate security notification. It comes from Apple's official domain, provides specific details about the sign-in, and includes a link to the official Apple ID website.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "Your Bank Account Has Been Compromised",
+    "from_name": "Wells Fargo Security",
+    "from_email": "alerts@wellsfargo-security.net",
+    "body_html": "Dear Account Holder,\n\nWe have detected fraudulent activity on your account. Your account has been temporarily frozen for your protection.\n\nTo restore access, please confirm your account details:\n- Account number\n- Social Security Number\n- Online banking password\n\nReply to this email with the requested information immediately.\n\nWells Fargo Security Department",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (wellsfargo-security.net)",
+      "Request for sensitive credentials via email",
+      "Urgent language",
+      "Generic greeting",
+      "Threat of account freeze"
+    ],
+    "explanation": "This is a phishing email. Banks never ask for sensitive information like account numbers, SSN, or passwords via email. The domain is not Wells Fargo's official domain.",
+    "difficulty": "hard"
+  },
+  {
+    "subject": "Your LinkedIn connection request",
+    "from_name": "LinkedIn",
+    "from_email": "messages-noreply@linkedin.com",
+    "body_html": "Hi,\n\nJohn Smith wants to connect with you on LinkedIn.\n\nView John's profile: https://www.linkedin.com/in/johnsmith\n\nAccept or ignore this invitation.\n\nBest regards,\nThe LinkedIn Team",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate LinkedIn notification. It comes from LinkedIn's official domain structure and provides a clear action without urgent language or suspicious links.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "IRS Tax Refund - Action Required",
+    "from_name": "Internal Revenue Service",
+    "from_email": "notifications@irs-gov-refund.com",
+    "body_html": "Dear Taxpayer,\n\nYou are eligible for a tax refund of $847.50.\n\nTo receive your refund, please complete the attached form and return it within 7 days.\n\nClick here to download: http://irs-gov-refund.com/form.pdf\n\nInternal Revenue Service",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (irs-gov-refund.com)",
+      "HTTP instead of HTTPS link",
+      "Attachment mention (form.pdf)",
+      "Urgent deadline",
+      "Too good to be true (unsolicited refund)"
+    ],
+    "explanation": "This is a phishing email. The IRS never contacts taxpayers via email about refunds, and the domain is not the official irs.gov domain. Legitimate government agencies use .gov domains.",
+    "difficulty": "hard"
+  },
+  {
+    "subject": "Your Dropbox file has been shared",
+    "from_name": "Dropbox",
+    "from_email": "noreply@dropbox.com",
+    "body_html": "Hi,\n\nSarah Johnson shared a folder with you.\n\nFolder: Project Documents\n\nView folder: https://www.dropbox.com/sh/abc123xyz\n\nYou can access this folder from any device.\n\nThanks,\nThe Dropbox Team",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate Dropbox notification. It comes from Dropbox's official domain and provides clear information about a shared folder without suspicious elements.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "Your Package Delivery Failed",
+    "from_name": "FedEx Delivery",
+    "from_email": "delivery@fedex-tracking-update.com",
+    "body_html": "Hello,\n\nWe attempted to deliver your package but were unable to complete the delivery.\n\nTracking Number: 1234567890\n\nTo reschedule delivery, please click here: bit.ly/fedex-reschedule\n\nYou must reschedule within 24 hours or your package will be returned to sender.\n\nFedEx Delivery Team",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (fedex-tracking-update.com)",
+      "Shortened URL (bit.ly)",
+      "Urgent deadline",
+      "Threat of package return"
+    ],
+    "explanation": "This is a phishing email. The domain is not FedEx's official domain (fedex.com), and it uses a shortened URL. Legitimate delivery companies use their official domains and provide tracking numbers that work on their official websites.",
+    "difficulty": "medium"
+  },
+  {
+    "subject": "Your Zoom meeting invitation",
+    "from_name": "Zoom",
+    "from_email": "noreply@zoom.us",
+    "body_html": "Hi,\n\nYou've been invited to a Zoom meeting.\n\nMeeting: Team Standup\nOrganizer: Jane Doe\nTime: Tomorrow at 10:00 AM EST\n\nJoin meeting: https://zoom.us/j/123456789\n\nMeeting ID: 123 456 789\n\nSee you there!\nZoom",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate Zoom meeting invitation. It comes from Zoom's official domain (zoom.us), provides specific meeting details, and includes a proper meeting link.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "Your Social Security Number is Suspended",
+    "from_name": "Social Security Administration",
+    "from_email": "alerts@ssa-gov-verify.net",
+    "body_html": "Dear Citizen,\n\nYour Social Security Number has been suspended due to suspicious activity.\n\nTo reactivate your SSN, please verify your identity by providing:\n- Full name\n- Date of birth\n- SSN\n- Bank account number\n\nReply to this email immediately to avoid permanent suspension.\n\nSocial Security Administration",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (ssa-gov-verify.net)",
+      "Request for sensitive personal information",
+      "Urgent language with threat",
+      "Generic greeting",
+      "Impossible claim (SSN cannot be suspended)"
+    ],
+    "explanation": "This is a phishing email. The Social Security Administration never contacts people via email about SSN issues, and SSNs cannot be 'suspended'. The domain is not the official ssa.gov domain.",
+    "difficulty": "hard"
+  },
+  {
+    "subject": "Your Google account security alert",
+    "from_name": "Google",
+    "from_email": "no-reply@accounts.google.com",
+    "body_html": "Hi there,\n\nSomeone just signed in to your Google Account from a new device.\n\nDevice: Windows PC\nLocation: New York, NY\nTime: January 15, 2025 at 3:45 PM EST\n\nIf this was you, you can ignore this email.\n\nIf you don't recognize this activity, secure your account: https://myaccount.google.com/security\n\nGoogle Account Team",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate Google security alert. It comes from Google's official accounts domain, provides specific sign-in details, and includes a link to the official Google Account security page.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "Your Credit Card Statement is Ready",
+    "from_name": "Chase Bank",
+    "from_email": "statements@chase-online-banking.com",
+    "body_html": "Dear Customer,\n\nYour monthly credit card statement is now available.\n\nTo view your statement, click here: http://chase-online-banking.com/statement\n\nIf you have questions about your statement, reply to this email.\n\nChase Bank",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (chase-online-banking.com)",
+      "HTTP instead of HTTPS link",
+      "Generic greeting",
+      "Request to click link for statement"
+    ],
+    "explanation": "This is a phishing email. The domain is not Chase's official domain (chase.com), and it uses HTTP instead of HTTPS. Banks always use secure HTTPS connections and their official domains.",
+    "difficulty": "medium"
+  },
+  {
+    "subject": "Your Spotify Premium trial is ending",
+    "from_name": "Spotify",
+    "from_email": "billing@spotify.com",
+    "body_html": "Hi,\n\nYour Spotify Premium trial ends in 3 days.\n\nTo continue enjoying ad-free music, your payment method will be charged $9.99/month starting January 18, 2025.\n\nNo action needed. If you want to cancel, visit: https://www.spotify.com/account/subscription\n\nThanks for listening!\nSpotify",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate email. It comes from Spotify's official domain, provides clear information about the trial ending, and includes a link to the official Spotify account page.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "Your Account Will Be Deleted in 24 Hours",
+    "from_name": "Facebook Security",
+    "from_email": "security@facebook-account-verify.com",
+    "body_html": "Hello,\n\nWe detected a violation of our Terms of Service. Your account will be permanently deleted in 24 hours unless you verify your identity.\n\nClick here to verify: bit.ly/fb-verify-now\n\nThis is your last chance to save your account.\n\nFacebook Security Team",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (facebook-account-verify.com)",
+      "Shortened URL (bit.ly)",
+      "Urgent threat of account deletion",
+      "Request to click link to verify"
+    ],
+    "explanation": "This is a phishing email. The domain is not Facebook's official domain (facebook.com), uses a shortened URL, and threatens account deletion. Legitimate companies don't use such urgent threats via email.",
+    "difficulty": "hard"
+  },
+  {
+    "subject": "Your Uber ride receipt",
+    "from_name": "Uber",
+    "from_email": "receipts@uber.com",
+    "body_html": "Hi,\n\nThanks for riding with Uber!\n\nTrip: Downtown to Airport\nDate: January 15, 2025\nFare: $24.50\n\nView receipt: https://riders.uber.com/trips/abc123\n\nRate your driver: https://riders.uber.com/rate/abc123\n\nThanks,\nUber",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate Uber receipt. It comes from Uber's official domain, provides specific trip details, and includes links to Uber's official rider portal.",
+    "difficulty": "easy"
+  },
+  {
+    "subject": "Your Amazon Prime membership expires soon",
+    "from_name": "Amazon Prime",
+    "from_email": "prime@amazon-renewal.com",
+    "body_html": "Dear Prime Member,\n\nYour Amazon Prime membership will expire in 5 days.\n\nTo continue enjoying Prime benefits, renew now: http://amazon-renewal.com/prime\n\nIf you don't renew, you'll lose access to Prime Video, free shipping, and more.\n\nAmazon Prime Team",
+    "is_phish": true,
+    "features": [
+      "Suspicious sender domain (amazon-renewal.com)",
+      "HTTP instead of HTTPS link",
+      "Urgent language",
+      "Threat of losing benefits"
+    ],
+    "explanation": "This is a phishing email. The domain is not Amazon's official domain (amazon.com), and it uses HTTP instead of HTTPS. Amazon always uses secure connections and their official domain.",
+    "difficulty": "medium"
+  },
+  {
+    "subject": "Your Slack workspace invitation",
+    "from_name": "Slack",
+    "from_email": "notifications@slack.com",
+    "body_html": "Hi,\n\nYou've been invited to join the 'Engineering Team' workspace on Slack.\n\nJoin workspace: https://engineering-team.slack.com/join\n\nIf you don't want to join, you can ignore this invitation.\n\nWelcome to Slack!\nThe Slack Team",
+    "is_phish": false,
+    "features": [],
+    "explanation": "This is a legitimate Slack invitation. It comes from Slack's official domain, provides clear information about the workspace invitation, and includes a proper invitation link.",
+    "difficulty": "easy"
   }
 ]
-

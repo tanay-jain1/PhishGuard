@@ -189,7 +189,6 @@ export function analyzeEmail(input: {
       break; // Only flag once
     }
   }
-  }
 
   // 4. Unexpected attachment mentions
   const attachmentPatterns = /\b(attachment|download|open|view|scan|virus|malware|invoice|document|file)\s+(attached|below|here|enclosed)\b/i;
