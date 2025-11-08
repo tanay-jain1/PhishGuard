@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface VerdictModalProps {
   isOpen: boolean;
   isCorrect: boolean;
+  pointsDelta: number;
   explanation: string;
-  redFlags: string[];
+  featureFlags: string[];
   onClose: () => void;
   onNext: () => void;
 }
@@ -14,9 +17,9 @@ interface VerdictModalProps {
 export default function VerdictModal({
   isOpen,
   isCorrect,
+  pointsDelta,
   explanation,
-  redFlags,
-  onClose,
+  featureFlags,
   onNext,
 }: VerdictModalProps) {
   useEffect(() => {
@@ -34,20 +37,24 @@ export default function VerdictModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {isCorrect ? '✅ Correct!' : '❌ Incorrect'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mb-6 space-y-4">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl font-bold">
+              {isCorrect ? '✅ Correct!' : '❌ Incorrect'}
+            </CardTitle>
+            <div
+              className={`rounded-full px-4 py-2 text-lg font-semibold ${
+                isCorrect
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+              }`}
+            >
+              {pointsDelta > 0 ? `+${pointsDelta}` : '0'} points
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div
             className={`rounded-lg p-4 ${
               isCorrect
@@ -58,36 +65,31 @@ export default function VerdictModal({
             <p className="text-zinc-900 dark:text-zinc-50">{explanation}</p>
           </div>
 
-          {redFlags.length > 0 && (
+          {featureFlags.length > 0 && (
             <div>
-              <h3 className="mb-2 font-semibold text-zinc-900 dark:text-zinc-50">
-                Red Flags to Look For:
+              <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                Red Flags:
               </h3>
-              <ul className="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
-                {redFlags.map((flag, index) => (
-                  <li key={index}>{flag}</li>
+              <div className="flex flex-wrap gap-2">
+                {featureFlags.slice(0, 4).map((flag, index) => (
+                  <span
+                    key={index}
+                    className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  >
+                    {flag}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
-        </div>
 
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            Review
-          </button>
-          <button
-            onClick={onNext}
-            className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            Next Email
-          </button>
-        </div>
-      </div>
+          <div className="flex justify-end pt-4">
+            <Button onClick={onNext} className="w-full sm:w-auto">
+              Next
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
-

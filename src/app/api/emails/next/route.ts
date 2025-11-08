@@ -36,7 +36,6 @@ export async function GET(request: Request) {
     }
 
     // Get emails the user has already guessed
-    // Check if guesses table exists, otherwise use game_sessions as fallback
     const { data: guessedEmails } = await supabase
       .from('guesses')
       .select('email_id')
@@ -55,9 +54,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ done: true });
     }
 
-    // Return a random unseen email
-    const randomIndex = Math.floor(Math.random() * unseenEmails.length);
-    const selectedEmail = unseenEmails[randomIndex];
+    // Difficulty weighting: prefer easy emails first, then medium, then hard
+    // Weight: easy=3, medium=2, hard=1
+    const difficultyWeights: Record<string, number> = {
+      easy: 3,
+      medium: 2,
+      hard: 1,
+    };
+
+    // Create weighted array
+    const weightedEmails: Array<{ email: typeof unseenEmails[0]; weight: number }> = [];
+    for (const email of unseenEmails) {
+      const weight = difficultyWeights[email.difficulty] || 1;
+      for (let i = 0; i < weight; i++) {
+        weightedEmails.push({ email, weight });
+      }
+    }
+
+    // Select random email from weighted array (defaults to random if time constraint)
+    const randomIndex = Math.floor(Math.random() * weightedEmails.length);
+    const selectedEmail = weightedEmails[randomIndex].email;
 
     return NextResponse.json({
       id: selectedEmail.id,
@@ -75,4 +91,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

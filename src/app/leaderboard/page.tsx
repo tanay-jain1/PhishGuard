@@ -1,30 +1,64 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-export default async function LeaderboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+interface LeaderboardEntry {
+  userId: string;
+  username: string;
+  points: number;
+  accuracy: number;
+  totalGuesses: number;
+  correctGuesses: number;
+  created_at: string;
+}
 
-  if (!user) {
-    redirect('/auth');
+export default function LeaderboardPage() {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push('/');
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      try {
+        const response = await fetch('/api/leaderboard');
+        const data = await response.json();
+
+        if (data.entries) {
+          setEntries(data.entries);
+        }
+      } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [router, supabase]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+      </div>
+    );
   }
-
-  // Fetch leaderboard data
-  const { data: leaderboard, error } = await supabase
-    .from('leaderboard')
-    .select('*')
-    .order('high_score', { ascending: false })
-    .limit(100);
-
-  // Get user's profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', user.id)
-    .single();
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -39,6 +73,12 @@ export default async function LeaderboardPage() {
               className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
             >
               Play
+            </Link>
+            <Link
+              href="/profile"
+              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+            >
+              Profile
             </Link>
             <Link
               href="/resources"
@@ -63,11 +103,7 @@ export default async function LeaderboardPage() {
           Leaderboard
         </h2>
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-            Error loading leaderboard. Make sure the database tables are set up.
-          </div>
-        ) : !leaderboard || leaderboard.length === 0 ? (
+        {entries.length === 0 ? (
           <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
             <p className="text-zinc-600 dark:text-zinc-400">
               No scores yet. Be the first to play!
@@ -91,19 +127,19 @@ export default async function LeaderboardPage() {
                     Username
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    High Score
+                    Points
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    Games Played
+                    Accuracy
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {leaderboard.map((entry, index) => (
+                {entries.map((entry, index) => (
                   <tr
-                    key={entry.id}
+                    key={entry.userId}
                     className={
-                      entry.user_id === user.id
+                      entry.userId === currentUserId
                         ? 'bg-blue-50 dark:bg-blue-900/20'
                         : ''
                     }
@@ -112,13 +148,13 @@ export default async function LeaderboardPage() {
                       {index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-900 dark:text-zinc-50">
-                      {entry.username || 'Anonymous'}
+                      {entry.username}
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                      {entry.high_score || 0}
+                      {entry.points}
                     </td>
                     <td className="px-6 py-4 text-right text-sm text-zinc-600 dark:text-zinc-400">
-                      {entry.total_games || 0}
+                      {entry.accuracy.toFixed(1)}%
                     </td>
                   </tr>
                 ))}
@@ -130,4 +166,3 @@ export default async function LeaderboardPage() {
     </div>
   );
 }
-

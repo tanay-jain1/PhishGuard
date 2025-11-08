@@ -1,22 +1,40 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Email } from '@/types/game';
-import { emails } from '@/data/emails';
+import EmailViewer from '@/components/EmailViewer';
+import GuessButtons from '@/components/GuessButtons';
 import VerdictModal from '@/components/VerdictModal';
 
+interface Email {
+  id: string;
+  subject: string;
+  from_name: string;
+  from_email: string;
+  body_html: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+interface VerdictData {
+  correct: boolean;
+  pointsDelta: number;
+  profileSnapshot: {
+    points: number;
+    streak: number;
+    accuracy: number;
+  };
+  explanation: string;
+  featureFlags: string[];
+}
+
 export default function PlayPage() {
-  const [currentEmail, setCurrentEmail] = useState<Email | null>(null);
-  const [emailIndex, setEmailIndex] = useState(0);
-  const [score, setScore] = useState(0);
-  const [totalGuesses, setTotalGuesses] = useState(0);
-  const [correctGuesses, setCorrectGuesses] = useState(0);
-  const [showVerdict, setShowVerdict] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
+  const [email, setEmail] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [showVerdict, setShowVerdict] = useState(false);
+  const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
+  const [profile, setProfile] = useState<{ points: number; streak: number } | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -25,81 +43,107 @@ export default function PlayPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      
       if (!user) {
-        router.push('/auth');
+        router.push('/');
         return;
       }
-      setUser(user);
-      loadEmail(0);
-      setLoading(false);
+
+      // Initialize profile if needed
+      try {
+        await fetch('/api/auth/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id }),
+        });
+      } catch (error) {
+        console.error('Failed to init profile:', error);
+      }
+
+      // Fetch first email
+      await fetchNextEmail(user.id);
     };
+
     initGame();
   }, [router, supabase]);
 
-  const loadEmail = (index: number) => {
-    if (index >= emails.length) {
-      // Game complete
-      return;
+  const fetchNextEmail = async (userId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/emails/next', {
+        headers: {
+          Authorization: `Bearer ${userId}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.done) {
+        router.push('/leaderboard');
+        return;
+      }
+
+      setEmail(data);
+    } catch (error) {
+      console.error('Failed to fetch email:', error);
+    } finally {
+      setLoading(false);
     }
-    setCurrentEmail(emails[index]);
-    setEmailIndex(index);
   };
 
-  const handleGuess = async (guess: boolean) => {
-    if (!currentEmail) return;
+  const handleGuess = async (guessIsPhish: boolean) => {
+    if (!email || submitting) return;
 
-    const correct = guess === currentEmail.isPhishing;
-    setIsCorrect(correct);
-    setTotalGuesses((prev) => prev + 1);
-    if (correct) {
-      setScore((prev) => prev + 10);
-      setCorrectGuesses((prev) => prev + 1);
-    }
-    setShowVerdict(true);
+    setSubmitting(true);
 
-    // Save to database
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('game_sessions').upsert({
-          user_id: user.id,
-          score: correct ? score + 10 : score,
-          total_guesses: totalGuesses + 1,
-          correct_guesses: correct ? correctGuesses + 1 : correctGuesses,
-          current_email_index: emailIndex,
-          completed: emailIndex + 1 >= emails.length,
-        });
+
+      if (!user) {
+        router.push('/');
+        return;
       }
+
+      const response = await fetch('/api/guess', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.id}`,
+        },
+        body: JSON.stringify({
+          emailId: email.id,
+          guessIsPhish,
+        }),
+      });
+
+      const data: VerdictData = await response.json();
+
+      setVerdictData(data);
+      setProfile(data.profileSnapshot);
+      setShowVerdict(true);
     } catch (error) {
-      console.error('Error saving game session:', error);
+      console.error('Failed to submit guess:', error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleNext = async () => {
     setShowVerdict(false);
-    if (emailIndex + 1 < emails.length) {
-      loadEmail(emailIndex + 1);
-    } else {
-      // Game complete - update leaderboard
-      try {
-        await fetch('/api/leaderboard/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ score }),
-        });
-      } catch (error) {
-        console.error('Error updating leaderboard:', error);
-      }
-      router.push('/leaderboard');
-    }
-  };
+    setVerdictData(null);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-    router.refresh();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push('/');
+      return;
+    }
+
+    await fetchNextEmail(user.id);
   };
 
   if (loading) {
@@ -110,23 +154,10 @@ export default function PlayPage() {
     );
   }
 
-  if (!currentEmail) {
+  if (!email) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="mb-4 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            Game Complete!
-          </h2>
-          <p className="mb-4 text-zinc-600 dark:text-zinc-400">
-            Final Score: {score} | Accuracy: {totalGuesses > 0 ? Math.round((correctGuesses / totalGuesses) * 100) : 0}%
-          </p>
-          <button
-            onClick={() => router.push('/leaderboard')}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-white dark:bg-zinc-50 dark:text-zinc-900"
-          >
-            View Leaderboard
-          </button>
-        </div>
+        <p className="text-zinc-600 dark:text-zinc-400">No more emails!</p>
       </div>
     );
   }
@@ -138,28 +169,22 @@ export default function PlayPage() {
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
             PhishGuard
           </h1>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              Score: <span className="font-semibold">{score}</span> |{' '}
-              {correctGuesses}/{totalGuesses} correct
-            </div>
+          <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+            {profile && (
+              <>
+                <span>
+                  Points: <span className="font-semibold">{profile.points}</span>
+                </span>
+                <span>
+                  Streak: <span className="font-semibold">{profile.streak}</span>
+                </span>
+              </>
+            )}
             <button
               onClick={() => router.push('/leaderboard')}
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="hover:text-zinc-900 dark:hover:text-zinc-50"
             >
               Leaderboard
-            </button>
-            <button
-              onClick={() => router.push('/resources')}
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              Resources
-            </button>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              Logout
             </button>
           </div>
         </div>
@@ -170,72 +195,31 @@ export default function PlayPage() {
           <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             Is this email a phishing attempt?
           </h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Email {emailIndex + 1} of {emails.length}
-          </p>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
-            <div className="mb-2">
-              <span className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-                From:{' '}
-              </span>
-              <span className="text-zinc-900 dark:text-zinc-50">
-                {currentEmail.from}
-              </span>
-            </div>
-            <div className="mb-2">
-              <span className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-                To:{' '}
-              </span>
-              <span className="text-zinc-900 dark:text-zinc-50">
-                {currentEmail.to}
-              </span>
-            </div>
-            <div>
-              <span className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-                Subject:{' '}
-              </span>
-              <span className="text-zinc-900 dark:text-zinc-50">
-                {currentEmail.subject}
-              </span>
-            </div>
-          </div>
-          <div className="p-6">
-            <div className="whitespace-pre-wrap text-zinc-900 dark:text-zinc-50">
-              {currentEmail.body}
-            </div>
-          </div>
-        </div>
+        <EmailViewer
+          subject={email.subject}
+          from={`${email.from_name} <${email.from_email}>`}
+          body_html={email.body_html}
+          difficulty={email.difficulty}
+        />
 
-        <div className="mt-6 flex gap-4">
-          <button
-            onClick={() => handleGuess(false)}
-            disabled={showVerdict}
-            className="flex-1 rounded-md border-2 border-green-500 bg-green-50 px-6 py-4 text-lg font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/30"
-          >
-            ✓ Legitimate
-          </button>
-          <button
-            onClick={() => handleGuess(true)}
-            disabled={showVerdict}
-            className="flex-1 rounded-md border-2 border-red-500 bg-red-50 px-6 py-4 text-lg font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
-          >
-            ✗ Phishing
-          </button>
+        <div className="mt-6">
+          <GuessButtons onGuess={handleGuess} disabled={submitting || showVerdict} />
         </div>
       </main>
 
-      <VerdictModal
-        isOpen={showVerdict}
-        isCorrect={isCorrect}
-        explanation={currentEmail.explanation}
-        redFlags={currentEmail.redFlags}
-        onClose={() => setShowVerdict(false)}
-        onNext={handleNext}
-      />
+      {verdictData && (
+        <VerdictModal
+          isOpen={showVerdict}
+          isCorrect={verdictData.correct}
+          pointsDelta={verdictData.pointsDelta}
+          explanation={verdictData.explanation}
+          featureFlags={verdictData.featureFlags}
+          onClose={() => setShowVerdict(false)}
+          onNext={handleNext}
+        />
+      )}
     </div>
   );
 }
-

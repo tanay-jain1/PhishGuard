@@ -44,8 +44,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth', request.url));
   }
 
-  // Redirect authenticated users away from /auth
-  if (request.nextUrl.pathname === '/auth' && user) {
+  // Redirect authenticated users away from /auth and landing page
+  if (
+    (request.nextUrl.pathname === '/auth' || request.nextUrl.pathname === '/') &&
+    user
+  ) {
     return NextResponse.redirect(new URL('/play', request.url));
   }
 

@@ -19,11 +19,11 @@ export async function POST(request: Request) {
 
     // Parse request body
     const body = await request.json();
-    const { emailId, guess } = body;
+    const { emailId, guessIsPhish } = body;
 
-    if (!emailId || typeof guess !== 'boolean') {
+    if (!emailId || typeof guessIsPhish !== 'boolean') {
       return NextResponse.json(
-        { error: 'Missing emailId or guess' },
+        { error: 'Missing emailId or guessIsPhish' },
         { status: 400 }
       );
     }
@@ -45,9 +45,9 @@ export async function POST(request: Request) {
     }
 
     // Compute if guess is correct
-    const correct = email.is_phish === guess;
+    const correct = email.is_phish === guessIsPhish;
 
-    // Get user's current profile to check streak
+    // Get user's current profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('points, streak')
@@ -82,12 +82,28 @@ export async function POST(request: Request) {
 
     const newPoints = currentPoints + pointsDelta;
 
+    // Get total guesses and correct guesses for accuracy calculation
+    const { count: totalGuesses } = await supabase
+      .from('guesses')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    const { count: correctGuesses } = await supabase
+      .from('guesses')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_correct', true);
+
+    const newTotalGuesses = (totalGuesses || 0) + 1;
+    const newCorrectGuesses = (correctGuesses || 0) + (correct ? 1 : 0);
+    const accuracy = newTotalGuesses > 0 ? (newCorrectGuesses / newTotalGuesses) * 100 : 0;
+
     // Upsert guess record
     const { error: guessError } = await supabase.from('guesses').upsert(
       {
         user_id: userId,
         email_id: emailId,
-        user_guess: guess,
+        user_guess: guessIsPhish,
         is_correct: correct,
         points: pointsDelta,
         created_at: new Date().toISOString(),
@@ -98,12 +114,11 @@ export async function POST(request: Request) {
     );
 
     if (guessError) {
-      // If guesses table doesn't exist, that's okay - we'll continue
       console.warn('Failed to upsert guess:', guessError.message);
     }
 
-    // Update profile with new points and streak
-    const { error: updateError } = await supabase
+    // Update profile with new points, streak, and accuracy
+    const { data: updatedProfile, error: updateError } = await supabase
       .from('profiles')
       .upsert(
         {
@@ -115,7 +130,9 @@ export async function POST(request: Request) {
         {
           onConflict: 'id',
         }
-      );
+      )
+      .select()
+      .single();
 
     if (updateError) {
       return NextResponse.json(
@@ -127,13 +144,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Return response
+    // Return response with profile snapshot
     return NextResponse.json({
       correct,
       pointsDelta,
+      profileSnapshot: {
+        points: newPoints,
+        streak: newStreak,
+        accuracy: Math.round(accuracy * 100) / 100, // Round to 2 decimal places
+        totalGuesses: newTotalGuesses,
+        correctGuesses: newCorrectGuesses,
+      },
       explanation: email.explanation,
       featureFlags: email.features || [],
-      difficulty: email.difficulty,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -143,4 +166,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
