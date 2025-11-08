@@ -1,127 +1,218 @@
 # PhishGuard
 
-A web game that teaches users to spot phishing emails and protect themselves online.
-
-## Quick Start (Local Development)
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Set Up Supabase
-
-1. **Create a Supabase project:**
-   - Go to [supabase.com](https://supabase.com)
-   - Sign up/login and create a new project
-   - Wait for the project to finish setting up (~2 minutes)
-
-2. **Get your credentials:**
-   - In your Supabase project, go to **Settings** → **API**
-   - Copy your **Project URL** and **anon/public key**
-
-3. **Set up environment variables:**
-   ```bash
-   # Create .env.local file
-   touch .env.local
-   ```
-   
-   Add these lines to `.env.local`:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_project_url_here
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
-   ```
-
-4. **Set up the database:**
-   - In Supabase, go to **SQL Editor**
-   - Click **New Query**
-   - Copy and paste the entire contents of `supabase-setup.sql`
-   - Click **Run** (or press Cmd/Ctrl + Enter)
-   - You should see "Success. No rows returned"
-
-### 3. Run the Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### 4. Test It Out
-
-1. Click **Get Started** on the home page
-2. Sign up with an email and password
-3. You'll be redirected to the game
-4. Start playing!
-
-## Tech Stack
-
-- **Next.js 16** (App Router, TypeScript)
-- **Tailwind CSS v4**
-- **Supabase** (Auth + Postgres with RLS)
-- **Vercel** (Deployment)
+A web game that teaches users to spot phishing emails and protect themselves online. Players analyze emails and guess whether they're legitimate or phishing attempts, earning points and building streaks while learning about cybersecurity.
 
 ## Features
 
-- ✅ User authentication (sign up/sign in)
-- ✅ Interactive game with phishing and legitimate emails
-- ✅ Verdict modal with explanations and red flags
-- ✅ Score tracking and leaderboard
-- ✅ Educational resources page
-- ✅ Responsive design with dark mode support
+- 🎮 **Interactive Gameplay** - Analyze real-world email examples and test your phishing detection skills
+- 📊 **Score Tracking** - Earn points for correct guesses, with bonus points for streaks
+- 🏆 **Leaderboard** - Compete with other players and see how you rank
+- 📚 **Educational Resources** - Learn about phishing red flags and how to protect yourself
+- 🔐 **Secure Authentication** - Built with Supabase Auth for secure user management
+- 🌙 **Dark Mode** - Full dark mode support for comfortable gameplay
+
+## Tech Stack
+
+- **Next.js 16** - React framework with App Router
+- **TypeScript** - Type-safe development
+- **Tailwind CSS v4** - Modern styling
+- **Supabase** - Authentication and PostgreSQL database with Row Level Security
+- **Vercel** - Deployment platform
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+ installed
+- A Supabase account (free tier works)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd phishguard
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up Supabase**
+   - Create a new project at [supabase.com](https://supabase.com)
+   - Get your project URL and anon key from Settings → API
+   - Create `.env.local`:
+     ```env
+     NEXT_PUBLIC_SUPABASE_URL=your_project_url
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+     ```
+
+4. **Set up database**
+   - Follow the instructions in `TABLE-SETUP.md` to create tables
+   - Run `complete-setup.sql` in Supabase SQL Editor
+   - Run `emails-table-setup.sql` for the emails table
+   - Seed emails: `npm run seed:emails` (requires `.env.seed` with service role key)
+
+5. **Run development server**
+   ```bash
+   npm run dev
+   ```
+   
+   Open [http://localhost:3000](http://localhost:3000)
 
 ## Project Structure
 
 ```
-src/
-├── app/
-│   ├── api/              # API routes
-│   ├── auth/             # Authentication page
-│   ├── play/             # Game page
-│   ├── leaderboard/      # Leaderboard page
-│   ├── resources/        # Resources page
-│   └── layout.tsx        # Root layout
-├── components/           # React components
-├── data/                 # Game data (emails)
-├── lib/                  # Utilities (Supabase clients)
-└── types/                # TypeScript types
+phishguard/
+├── src/
+│   ├── app/
+│   │   ├── api/              # API routes
+│   │   │   ├── emails/       # Email fetching
+│   │   │   ├── guess/        # Guess submission
+│   │   │   ├── leaderboard/  # Leaderboard updates
+│   │   │   └── auth/         # Authentication
+│   │   ├── auth/             # Login/signup page
+│   │   ├── play/             # Main game page
+│   │   ├── leaderboard/         # Leaderboard display
+│   │   └── resources/        # Educational content
+│   ├── components/           # React components
+│   ├── lib/                  # Utilities (Supabase clients)
+│   ├── types/                # TypeScript type definitions
+│   └── data/                 # Seed data
+├── scripts/                  # Utility scripts (seeding)
+└── *.sql                     # Database setup scripts
 ```
+
+## API Routes
+
+### `GET /api/emails/next`
+Returns the next unseen email for the authenticated user.
+
+**Headers:**
+- `Authorization: Bearer <userId>`
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "subject": "Email subject",
+  "from_name": "Sender name",
+  "from_email": "sender@example.com",
+  "body_html": "Email body",
+  "difficulty": "easy|medium|hard"
+}
+```
+Or `{ "done": true }` if no emails left.
+
+### `POST /api/guess`
+Submit a guess for an email.
+
+**Headers:**
+- `Authorization: Bearer <userId>`
+
+**Body:**
+```json
+{
+  "emailId": "uuid",
+  "guess": true  // true = phishing, false = legitimate
+}
+```
+
+**Response:**
+```json
+{
+  "correct": true,
+  "pointsDelta": 1,
+  "explanation": "Explanation text",
+  "featureFlags": ["red flag 1", "red flag 2"],
+  "difficulty": "easy"
+}
+```
+
+### `POST /api/leaderboard/update`
+Update leaderboard with current user stats.
+
+### `POST /api/auth/logout`
+Logout the current user.
+
+## Scoring System
+
+- **Base Points**: +1 point for each correct guess
+- **Streak Bonus**: +1 bonus point every 5 correct guesses in a row
+- **Streak Reset**: Streak resets to 0 on incorrect guess
 
 ## Database Schema
 
-- `profiles` - User profiles
-- `game_sessions` - Game session data
-- `leaderboard` - Leaderboard entries
+The project uses the following Supabase tables:
 
-See `supabase-setup.sql` for full schema and RLS policies.
+- **profiles** - User profiles with points and streaks
+- **emails** - Email pool for the game
+- **guesses** - Individual guess records
+- **leaderboard** - Aggregated leaderboard stats
+- **game_sessions** - Game session tracking (legacy)
 
-## Troubleshooting
+See `ARCHITECTURE.md` for detailed database schema and API contracts.
 
-**"Invalid API key" error:**
-- Double-check your `.env.local` file has the correct values
-- Make sure you're using the **anon/public** key, not the service role key
-- Restart your dev server after changing `.env.local`
+## Development
 
-**Database errors:**
-- Make sure you ran the `supabase-setup.sql` script completely
-- Check the Supabase SQL Editor for any error messages
-- Verify RLS policies were created (Settings → Authentication → Policies)
+### Available Scripts
 
-**Port already in use:**
-```bash
-# Use a different port
-npm run dev -- -p 3001
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run seed:emails` - Seed emails into database
+
+### Environment Variables
+
+**`.env.local`** (required):
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+```
+
+**`.env.seed`** (optional, for seeding):
+```env
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
 ## Deployment
 
+### Vercel (Recommended)
+
 1. Push your code to GitHub
-2. Import your repository in Vercel
-3. Add your environment variables in Vercel project settings:
+2. Import repository in [Vercel](https://vercel.com)
+3. Add environment variables:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 4. Deploy!
+
+The app will automatically build and deploy on every push to main.
+
+## Troubleshooting
+
+**"Invalid API key" error:**
+- Verify `.env.local` has correct values
+- Restart dev server after changing env vars
+- Ensure you're using the anon key, not service role key
+
+**Database permission errors:**
+- Use Supabase Table Editor to create tables (see `TABLE-SETUP.md`)
+- Then run SQL scripts for RLS policies and triggers
+
+**Emails not showing:**
+- Ensure emails table is created and seeded
+- Run `npm run seed:emails` to populate emails
+- Check Supabase Table Editor to verify emails exist
+
+**Build errors:**
+- Clear `.next` directory: `rm -rf .next`
+- Reinstall dependencies: `rm -rf node_modules && npm install`
+
+## Contributing
+
+This is a hackathon project. Feel free to fork and improve!
 
 ## License
 
