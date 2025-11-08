@@ -9,7 +9,7 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   if (user) {
-    redirect('/play');
+    redirect('/about');
   }
 
   return (

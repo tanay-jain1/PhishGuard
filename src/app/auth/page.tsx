@@ -26,7 +26,7 @@ export default function AuthPage() {
           password,
         });
         if (error) throw error;
-        router.push('/play');
+        router.push('/about');
         router.refresh();
       } else {
         const { error: signUpError } = await supabase.auth.signUp({
@@ -37,7 +37,7 @@ export default function AuthPage() {
           },
         });
         if (signUpError) throw signUpError;
-        router.push('/play');
+        router.push('/about');
         router.refresh();
       }
     } catch (err) {

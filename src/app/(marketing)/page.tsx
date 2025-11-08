@@ -20,7 +20,7 @@ export default function LandingPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        router.push('/play');
+        router.push('/about');
       }
     };
     checkUser();
@@ -35,7 +35,7 @@ export default function LandingPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/play`,
+          emailRedirectTo: `${window.location.origin}/about`,
         },
       });
 

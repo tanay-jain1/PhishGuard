@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
     (request.nextUrl.pathname === '/auth' || request.nextUrl.pathname === '/') &&
     user
   ) {
-    return NextResponse.redirect(new URL('/play', request.url));
+    return NextResponse.redirect(new URL('/about', request.url));
   }
 
   return response;
