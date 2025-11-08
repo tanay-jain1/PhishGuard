@@ -1,11 +1,16 @@
 -- PhishGuard Database Setup
 -- Run this SQL in your Supabase SQL Editor
+-- Make sure you're in the SQL Editor (not the Table Editor)
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Grant necessary permissions (run this first if you get permission errors)
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON SCHEMA public TO postgres, anon, authenticated, service_role;
+
 -- Create profiles table
-CREATE TABLE IF NOT EXISTS profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   username TEXT,
@@ -14,7 +19,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- Create game_sessions table
-CREATE TABLE IF NOT EXISTS game_sessions (
+CREATE TABLE IF NOT EXISTS public.game_sessions (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   score INTEGER DEFAULT 0,
@@ -27,7 +32,7 @@ CREATE TABLE IF NOT EXISTS game_sessions (
 );
 
 -- Create leaderboard table
-CREATE TABLE IF NOT EXISTS leaderboard (
+CREATE TABLE IF NOT EXISTS public.leaderboard (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
   username TEXT NOT NULL,
@@ -36,58 +41,67 @@ CREATE TABLE IF NOT EXISTS leaderboard (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_game_sessions_user_id ON game_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_leaderboard_high_score ON leaderboard(high_score DESC);
-CREATE INDEX IF NOT EXISTS idx_leaderboard_user_id ON leaderboard(user_id);
+-- Grant table permissions
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leaderboard ENABLE ROW LEVEL SECURITY;
 
--- Enable Row Level Security (RLS)
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE game_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE leaderboard ENABLE ROW LEVEL SECURITY;
+-- Grant access to tables
+GRANT ALL ON public.profiles TO postgres, anon, authenticated, service_role;
+GRANT ALL ON public.game_sessions TO postgres, anon, authenticated, service_role;
+GRANT ALL ON public.leaderboard TO postgres, anon, authenticated, service_role;
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_game_sessions_user_id ON public.game_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_high_score ON public.leaderboard(high_score DESC);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_user_id ON public.leaderboard(user_id);
 
 -- RLS Policies for profiles
 CREATE POLICY "Users can view their own profile"
-  ON profiles FOR SELECT
+  ON public.profiles FOR SELECT
   USING (auth.uid() = id);
 
 CREATE POLICY "Users can update their own profile"
-  ON profiles FOR UPDATE
+  ON public.profiles FOR UPDATE
   USING (auth.uid() = id);
 
 CREATE POLICY "Users can insert their own profile"
-  ON profiles FOR INSERT
+  ON public.profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
 
 -- RLS Policies for game_sessions
 CREATE POLICY "Users can view their own game sessions"
-  ON game_sessions FOR SELECT
+  ON public.game_sessions FOR SELECT
   USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert their own game sessions"
-  ON game_sessions FOR INSERT
+  ON public.game_sessions FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their own game sessions"
-  ON game_sessions FOR UPDATE
+  ON public.game_sessions FOR UPDATE
   USING (auth.uid() = user_id);
 
 -- RLS Policies for leaderboard
 CREATE POLICY "Anyone can view leaderboard"
-  ON leaderboard FOR SELECT
+  ON public.leaderboard FOR SELECT
   USING (true);
 
 CREATE POLICY "Users can update their own leaderboard entry"
-  ON leaderboard FOR UPDATE
+  ON public.leaderboard FOR UPDATE
   USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert their own leaderboard entry"
-  ON leaderboard FOR INSERT
+  ON public.leaderboard FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
 -- Function to automatically create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, username)
   VALUES (
@@ -97,11 +111,10 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger to create profile on user signup
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-

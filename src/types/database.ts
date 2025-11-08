@@ -14,6 +14,8 @@ export interface Database {
           id: string;
           email: string;
           username: string | null;
+          points: number | null;
+          streak: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -21,6 +23,8 @@ export interface Database {
           id: string;
           email: string;
           username?: string | null;
+          points?: number | null;
+          streak?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -28,6 +32,8 @@ export interface Database {
           id?: string;
           email?: string;
           username?: string | null;
+          points?: number | null;
+          streak?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -90,6 +96,76 @@ export interface Database {
           username?: string;
           high_score?: number;
           total_games?: number;
+          updated_at?: string;
+        };
+      };
+      guesses: {
+        Row: {
+          id: string;
+          user_id: string;
+          email_id: string;
+          user_guess: boolean;
+          is_correct: boolean;
+          points: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email_id: string;
+          user_guess: boolean;
+          is_correct?: boolean;
+          points?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email_id?: string;
+          user_guess?: boolean;
+          is_correct?: boolean;
+          points?: number;
+          created_at?: string;
+        };
+      };
+      emails: {
+        Row: {
+          id: string;
+          subject: string;
+          from_name: string;
+          from_email: string;
+          body_html: string;
+          is_phish: boolean;
+          features: Json;
+          explanation: string;
+          difficulty: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          subject: string;
+          from_name: string;
+          from_email: string;
+          body_html: string;
+          is_phish: boolean;
+          features?: Json;
+          explanation: string;
+          difficulty: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          subject?: string;
+          from_name?: string;
+          from_email?: string;
+          body_html?: string;
+          is_phish?: boolean;
+          features?: Json;
+          explanation?: string;
+          difficulty?: string;
+          created_at?: string;
           updated_at?: string;
         };
       };

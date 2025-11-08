@@ -11,17 +11,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { score } = body;
-
-  // Get user profile for username
+  // Get user profile for username and current points
   const { data: profile } = await supabase
     .from('profiles')
-    .select('username')
+    .select('username, points')
     .eq('id', user.id)
     .single();
 
   const username = profile?.username || user.email?.split('@')[0] || 'Anonymous';
+  const currentPoints = profile?.points || 0;
 
   // Get current leaderboard entry
   const { data: currentEntry } = await supabase
@@ -30,9 +28,15 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
     .single();
 
+  // Count total guesses for total_games
+  const { count: totalGuesses } = await supabase
+    .from('guesses')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id);
+
   const newHighScore = currentEntry
-    ? Math.max(currentEntry.high_score || 0, score)
-    : score;
+    ? Math.max(currentEntry.high_score || 0, currentPoints)
+    : currentPoints;
 
   const { data, error } = await supabase
     .from('leaderboard')
@@ -40,7 +44,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       username,
       high_score: newHighScore,
-      total_games: currentEntry ? (currentEntry.total_games || 0) + 1 : 1,
+      total_games: totalGuesses || 0,
       updated_at: new Date().toISOString(),
     })
     .select()

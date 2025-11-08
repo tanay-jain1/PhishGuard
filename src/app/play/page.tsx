@@ -16,7 +16,7 @@ export default function PlayPage() {
   const [showVerdict, setShowVerdict] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
