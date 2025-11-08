@@ -23,9 +23,11 @@ interface VerdictData {
     points: number;
     streak: number;
     accuracy: number;
+    badges: string[];
   };
   explanation: string;
   featureFlags: string[];
+  difficulty?: string;
 }
 
 interface MlData {
@@ -41,22 +43,23 @@ export default function PlayPage() {
   const [showVerdict, setShowVerdict] = useState(false);
   const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
   const [mlData, setMlData] = useState<MlData | null>(null);
-  const [profile, setProfile] = useState<{ points: number; streak: number } | null>(null);
+  const [profile, setProfile] = useState<{ points: number; streak: number; badges: string[] } | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
     const initGame = async () => {
+      // Get user - if no user, redirect to /auth
       const {
         data: { user },
       } = await supabase.auth.getUser();
       
       if (!user) {
-        router.push('/');
+        router.push('/auth');
         return;
       }
 
-      // Initialize profile if needed
+      // Initialize profile if needed (call once)
       try {
         await fetch('/api/auth/init', {
           method: 'POST',
@@ -65,6 +68,25 @@ export default function PlayPage() {
         });
       } catch (error) {
         console.error('Failed to init profile:', error);
+      }
+
+      // Fetch profile row (select points, streak, badges)
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('points, streak, badges')
+          .eq('id', user.id)
+          .single();
+
+        if (profileData) {
+          setProfile({
+            points: profileData.points || 0,
+            streak: profileData.streak || 0,
+            badges: (profileData.badges as string[]) || [],
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
       }
 
       // Fetch first email
@@ -109,7 +131,7 @@ export default function PlayPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/');
+        router.push('/auth');
         return;
       }
 
@@ -125,10 +147,49 @@ export default function PlayPage() {
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API error:', errorData);
+        
+        // Handle already_guessed error
+        if (response.status === 409 && errorData.error === 'already_guessed') {
+          alert('You have already guessed this email. Fetching next email...');
+          await fetchNextEmail(user.id);
+          return;
+        }
+        
+        alert(`Error: ${errorData.error || 'Failed to submit guess'}`);
+        return;
+      }
+
       const data: VerdictData = await response.json();
 
-      setVerdictData(data);
-      setProfile(data.profileSnapshot);
+      // Validate response has required fields
+      if (typeof data.correct !== 'boolean') {
+        console.error('Invalid response: correct field is not boolean', data);
+        alert('Error: Invalid response from server');
+        return;
+      }
+
+      // Ensure featureFlags is always an array
+      const verdictDataWithFlags: VerdictData = {
+        correct: data.correct,
+        pointsDelta: data.pointsDelta ?? 0,
+        profileSnapshot: data.profileSnapshot,
+        explanation: data.explanation || '',
+        featureFlags: data.featureFlags || [],
+        difficulty: data.difficulty,
+      };
+
+      setVerdictData(verdictDataWithFlags);
+      
+      // IMPORTANT: Use API snapshot as single source of truth - no client-side math
+      // The API returns the exact values from the database after commit
+      setProfile({
+        points: data.profileSnapshot.points,
+        streak: data.profileSnapshot.streak,
+        badges: data.profileSnapshot.badges || [],
+      });
       setShowVerdict(true);
 
       // Fetch ML classification if available
@@ -179,7 +240,7 @@ export default function PlayPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      router.push('/');
+      router.push('/auth');
       return;
     }
 
@@ -189,61 +250,47 @@ export default function PlayPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-[#1b2a49]/70">Loading...</p>
+        <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
       </div>
     );
   }
 
   if (!email) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="text-center rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm p-8 shadow-xl max-w-md w-full">
-          <h2 className="mb-4 text-2xl font-bold text-[#1b2a49]">
-            No more emails!
-          </h2>
-          <p className="mb-4 text-[#1b2a49]/80">
-            You've completed all available emails. Great job!
-          </p>
-          <button
-            onClick={() => router.push('/leaderboard')}
-            className="rounded-xl bg-[#1b2a49] px-6 py-3 font-semibold text-white transition-all duration-300 hover:bg-[#2e4e3f] shadow-md hover:shadow-lg"
-          >
-            View Leaderboard
-          </button>
-        </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-zinc-600 dark:text-zinc-400">No more emails!</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
-      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
-          <h1 className="text-xl font-bold text-[#1b2a49]">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
             PhishGuard
           </h1>
-          <div className="flex items-center gap-4 text-sm text-[#1b2a49]/70">
+          <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
             {profile && (
               <>
                 <span>
-                  Points: <span className="font-semibold text-[#1b2a49]">{profile.points}</span>
+                  Points: <span className="font-semibold">{profile.points}</span>
                 </span>
                 <span>
-                  Streak: <span className="font-semibold text-[#1b2a49]">{profile.streak}</span>
+                  Streak: <span className="font-semibold">{profile.streak}</span>
                 </span>
+                {profile.badges && profile.badges.length > 0 && (
+                  <span>
+                    Badges: <span className="font-semibold">{profile.badges.length}</span>
+                  </span>
+                )}
               </>
             )}
             <button
               onClick={() => router.push('/leaderboard')}
-              className="hover:text-[#1b2a49] font-medium transition-colors"
+              className="hover:text-zinc-900 dark:hover:text-zinc-50"
             >
               Leaderboard
-            </button>
-            <button
-              onClick={() => router.push('/resources')}
-              className="hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Resources
             </button>
           </div>
         </div>
@@ -251,7 +298,7 @@ export default function PlayPage() {
 
       <main className="mx-auto max-w-4xl px-4 py-8">
         <div className="mb-6 text-center">
-          <h2 className="mb-2 text-2xl font-bold text-[#1b2a49]">
+          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             Is this email a phishing attempt?
           </h2>
         </div>
@@ -285,3 +332,4 @@ export default function PlayPage() {
     </div>
   );
 }
+

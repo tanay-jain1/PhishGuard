@@ -9,7 +9,7 @@ interface VerdictModalProps {
   isCorrect: boolean;
   pointsDelta: number;
   explanation: string;
-  featureFlags: string[];
+  featureFlags?: string[];
   mlProbPhish?: number;
   mlReasons?: string[];
   mlTokens?: string[];
@@ -72,7 +72,7 @@ export default function VerdictModal({
             <p className="text-[#1b2a49] leading-relaxed">{explanation}</p>
           </div>
 
-          {featureFlags.length > 0 && (
+          {featureFlags && featureFlags.length > 0 && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-[#1b2a49]">
                 Red Flags:

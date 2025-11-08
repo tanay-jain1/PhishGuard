@@ -9,6 +9,8 @@ interface LeaderboardEntry {
   userId: string;
   username: string;
   points: number;
+  badges: string[];
+  badgesCount: number;
   accuracy: number;
   totalGuesses: number;
   correctGuesses: number;
@@ -130,6 +132,9 @@ export default function LeaderboardPage() {
                     Points
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
+                    Badges
+                  </th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
                     Accuracy
                   </th>
                 </tr>
@@ -152,6 +157,12 @@ export default function LeaderboardPage() {
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-[#1b2a49]">
                       {entry.points}
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm text-[#1b2a49]">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-lg">🏆</span>
+                        <span className="font-medium">{entry.badgesCount || 0}</span>
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-right text-sm text-[#1b2a49]/70">
                       {entry.accuracy.toFixed(1)}%

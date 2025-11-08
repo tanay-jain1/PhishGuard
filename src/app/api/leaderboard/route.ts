@@ -6,10 +6,12 @@ export async function GET() {
     const supabase = await createClient();
 
     // Get all profiles with their guess statistics
+    // Order by points DESC to get top users first
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, username, points, created_at')
-      .order('created_at', { ascending: true });
+      .select('id, username, points, badges, created_at')
+      .order('points', { ascending: false })
+      .limit(20); // Get more than 10 to account for sorting by accuracy
 
     if (profilesError) {
       return NextResponse.json(
@@ -44,6 +46,8 @@ export async function GET() {
           userId: profile.id,
           username: profile.username || 'Anonymous',
           points: profile.points || 0,
+          badges: (profile.badges as string[]) || [],
+          badgesCount: Array.isArray(profile.badges) ? profile.badges.length : 0,
           accuracy: Math.round(accuracy * 100) / 100,
           totalGuesses: total,
           correctGuesses: correct,
@@ -52,14 +56,21 @@ export async function GET() {
       })
     );
 
-    // Sort: points desc, accuracy desc, created_at asc
+    // Sort: points desc, badges count desc, accuracy desc, created_at asc
     leaderboardEntries.sort((a, b) => {
+      // First by points
       if (b.points !== a.points) {
         return b.points - a.points;
       }
+      // Then by badges count
+      if (b.badgesCount !== a.badgesCount) {
+        return b.badgesCount - a.badgesCount;
+      }
+      // Then by accuracy
       if (b.accuracy !== a.accuracy) {
         return b.accuracy - a.accuracy;
       }
+      // Finally by creation date (earlier = better)
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
 

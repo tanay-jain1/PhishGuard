@@ -16,6 +16,7 @@ export interface Database {
           username: string | null;
           points: number | null;
           streak: number | null;
+          badges: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -25,6 +26,7 @@ export interface Database {
           username?: string | null;
           points?: number | null;
           streak?: number | null;
+          badges?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -34,6 +36,7 @@ export interface Database {
           username?: string | null;
           points?: number | null;
           streak?: number | null;
+          badges?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };

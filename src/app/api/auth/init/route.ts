@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+/**
+ * Initialize or update user profile
+ * This endpoint ensures the user has a profile in the database
+ * Upserts profile with id=userId (no changes if it already exists)
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -15,12 +20,23 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    // Upsert profile with just the id
+    // Get user's email from auth
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    // Upsert profile with default values and user's email
+    // onConflict: 'id' ensures no duplicate is created if profile already exists
     const { data, error } = await supabase
       .from('profiles')
       .upsert(
         {
           id: userId,
+          points: 0,
+          streak: 0,
+          badges: [],
+          email: authUser?.email || '',
+          username: null,
         },
         {
           onConflict: 'id',
@@ -45,4 +61,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

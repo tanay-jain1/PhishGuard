@@ -5,12 +5,14 @@ import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getUserBadges, BADGES } from '@/lib/badges';
 
 interface Profile {
   points: number;
   streak: number;
   username: string | null;
   email: string;
+  badges?: string[];
 }
 
 interface Stats {
@@ -41,7 +43,7 @@ export default function ProfilePage() {
         // Fetch profile
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('points, streak, username, email')
+          .select('points, streak, username, email, badges')
           .eq('id', user.id)
           .single();
 
@@ -200,6 +202,97 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Badges Section */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Badges</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {profile?.badges && profile.badges.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {getUserBadges(profile.badges).map((badge) => (
+                  <div
+                    key={badge.id}
+                    className="rounded-lg border border-zinc-200 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <div className="mb-2 text-4xl">{badge.icon}</div>
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {badge.name}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                      {badge.description}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-zinc-600 dark:text-zinc-400">
+                <p className="mb-2">No badges earned yet!</p>
+                <p className="text-sm">
+                  Start playing to earn your first badge at 5 points.
+                </p>
+              </div>
+            )}
+
+            {/* Show next badge to unlock */}
+            {profile && (
+              <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  Next Badge
+                </div>
+                {(() => {
+                  const nextBadge = BADGES.find(
+                    (badge) => !profile.badges?.includes(badge.id)
+                  );
+                  if (nextBadge) {
+                    const pointsNeeded = nextBadge.threshold - (profile.points || 0);
+                    return (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{nextBadge.icon}</span>
+                          <div>
+                            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                              {nextBadge.name}
+                            </div>
+                            <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                              {pointsNeeded > 0
+                                ? `${pointsNeeded} more points needed`
+                                : 'Unlocked!'}
+                            </div>
+                          </div>
+                        </div>
+                        {pointsNeeded > 0 && (
+                          <div className="mt-2">
+                            <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                              <div
+                                className="h-full bg-blue-500 transition-all"
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    ((profile.points || 0) / nextBadge.threshold) * 100
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                            <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                              {profile.points || 0} / {nextBadge.threshold} points
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      🏆 You've earned all badges! Amazing work!
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
