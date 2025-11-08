@@ -8,4 +8,3 @@ ALTER TABLE profiles
 UPDATE profiles 
 SET badges = '[]'::jsonb 
 WHERE badges IS NULL;
-

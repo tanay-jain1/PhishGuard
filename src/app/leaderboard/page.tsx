@@ -64,42 +64,6 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen">
-      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
-          <h1 className="text-xl font-bold text-[#1b2a49]">
-            PhishGuard
-          </h1>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/play"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Play
-            </Link>
-            <Link
-              href="/profile"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Profile
-            </Link>
-            <Link
-              href="/resources"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Resources
-            </Link>
-            <form action="/api/auth/logout" method="POST">
-              <button
-                type="submit"
-                className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-              >
-                Logout
-              </button>
-            </form>
-          </div>
-        </div>
-      </nav>
-
       <main className="mx-auto max-w-4xl px-4 py-8">
         <h2 className="mb-6 text-3xl font-bold text-[#1b2a49]">
           Leaderboard

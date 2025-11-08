@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useProfile } from '@/lib/useProfile';
 import EmailViewer from '@/components/EmailViewer';
 import GuessButtons from '@/components/GuessButtons';
 import VerdictModal from '@/components/VerdictModal';
@@ -19,12 +20,12 @@ interface Email {
 interface VerdictData {
   correct: boolean;
   pointsDelta: number;
-  profileSnapshot: {
+  profile: {
     points: number;
     streak: number;
-    accuracy: number;
     badges: string[];
   };
+  unlockedBadges?: string[];
   explanation: string;
   featureFlags: string[];
   difficulty?: string;
@@ -43,7 +44,8 @@ export default function PlayPage() {
   const [showVerdict, setShowVerdict] = useState(false);
   const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
   const [mlData, setMlData] = useState<MlData | null>(null);
-  const [profile, setProfile] = useState<{ points: number; streak: number; badges: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { refreshProfile } = useProfile();
   const router = useRouter();
   const supabase = createClient();
 
@@ -70,25 +72,6 @@ export default function PlayPage() {
         console.error('Failed to init profile:', error);
       }
 
-      // Fetch profile row (select points, streak, badges)
-      try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('points, streak, badges')
-          .eq('id', user.id)
-          .single();
-
-        if (profileData) {
-          setProfile({
-            points: profileData.points || 0,
-            streak: profileData.streak || 0,
-            badges: (profileData.badges as string[]) || [],
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch profile:', error);
-      }
-
       // Fetch first email
       await fetchNextEmail(user.id);
     };
@@ -98,6 +81,7 @@ export default function PlayPage() {
 
   const fetchNextEmail = async (userId: string) => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/emails/next', {
         headers: {
@@ -105,16 +89,36 @@ export default function PlayPage() {
         },
       });
 
-      const data = await response.json();
-
-      if (data.done) {
-        router.push('/leaderboard');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch email:', response.status, errorData);
+        setError(`Failed to load emails: ${errorData.error || response.statusText}`);
+        setLoading(false);
         return;
       }
 
-      setEmail(data);
+      const data = await response.json();
+      console.log('Email response:', data); // Debug log
+
+      // Only redirect to leaderboard if explicitly done
+      if (data.done === true) {
+        setError('No more emails available. All emails have been completed!');
+        // Don't auto-redirect, let user see the message
+        setLoading(false);
+        return;
+      }
+
+      // If we got an email, set it
+      if (data.id) {
+        setEmail(data);
+        setError(null);
+      } else {
+        console.error('No email data received:', data);
+        setError('No email data received from server');
+      }
     } catch (error) {
       console.error('Failed to fetch email:', error);
+      setError('Failed to fetch email. Please check if emails are seeded in the database.');
     } finally {
       setLoading(false);
     }
@@ -175,22 +179,19 @@ export default function PlayPage() {
       const verdictDataWithFlags: VerdictData = {
         correct: data.correct,
         pointsDelta: data.pointsDelta ?? 0,
-        profileSnapshot: data.profileSnapshot,
+        profile: data.profile || { points: 0, streak: 0, badges: [] },
+        unlockedBadges: data.unlockedBadges,
         explanation: data.explanation || '',
         featureFlags: data.featureFlags || [],
         difficulty: data.difficulty,
       };
 
       setVerdictData(verdictDataWithFlags);
-      
-      // IMPORTANT: Use API snapshot as single source of truth - no client-side math
-      // The API returns the exact values from the database after commit
-      setProfile({
-        points: data.profileSnapshot.points,
-        streak: data.profileSnapshot.streak,
-        badges: data.profileSnapshot.badges || [],
-      });
       setShowVerdict(true);
+
+      // IMPORTANT: Refresh profile from database so navbar updates immediately
+      // This ensures the header shows the latest points/streak from DB
+      await refreshProfile();
 
       // Fetch ML classification if available
       if (email) {
@@ -255,47 +256,54 @@ export default function PlayPage() {
     );
   }
 
+  if (error && !email) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+            If no emails are available, you may need to seed the database.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={async () => {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) await fetchNextEmail(user.id);
+              }}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => router.push('/leaderboard')}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Go to Leaderboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!email) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-zinc-600 dark:text-zinc-400">No more emails!</p>
+        <div className="text-center">
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">No more emails available!</p>
+          <button
+            onClick={() => router.push('/leaderboard')}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Go to Leaderboard
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-            PhishGuard
-          </h1>
-          <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
-            {profile && (
-              <>
-                <span>
-                  Points: <span className="font-semibold">{profile.points}</span>
-                </span>
-                <span>
-                  Streak: <span className="font-semibold">{profile.streak}</span>
-                </span>
-                {profile.badges && profile.badges.length > 0 && (
-                  <span>
-                    Badges: <span className="font-semibold">{profile.badges.length}</span>
-                  </span>
-                )}
-              </>
-            )}
-            <button
-              onClick={() => router.push('/leaderboard')}
-              className="hover:text-zinc-900 dark:hover:text-zinc-50"
-            >
-              Leaderboard
-            </button>
-          </div>
-        </div>
-      </nav>
-
       <main className="mx-auto max-w-4xl px-4 py-8">
         <div className="mb-6 text-center">
           <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
@@ -332,4 +340,3 @@ export default function PlayPage() {
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { analyzeEmail } from '@/lib/heuristics';
 
 export async function GET(request: Request) {
   try {
@@ -75,13 +76,41 @@ export async function GET(request: Request) {
     const randomIndex = Math.floor(Math.random() * weightedEmails.length);
     const selectedEmail = weightedEmails[randomIndex].email;
 
+    // Compute features/difficulty on the fly if missing
+    let difficulty = selectedEmail.difficulty;
+    let features = (selectedEmail.features as string[]) || [];
+
+    if (!difficulty || !features || features.length === 0) {
+      const heuristicResult = analyzeEmail({
+        subject: selectedEmail.subject,
+        body_html: selectedEmail.body_html,
+        from_email: selectedEmail.from_email,
+        from_name: selectedEmail.from_name,
+      });
+
+      // Map heuristic difficulty (1|2|3) to database format ('easy'|'medium'|'hard')
+      const difficultyMap: Record<1 | 2 | 3, 'easy' | 'medium' | 'hard'> = {
+        1: 'easy',
+        2: 'medium',
+        3: 'hard',
+      };
+
+      if (!difficulty) {
+        difficulty = difficultyMap[heuristicResult.difficulty];
+      }
+
+      if (!features || features.length === 0) {
+        features = heuristicResult.topReasons.map(r => r.label);
+      }
+    }
+
     return NextResponse.json({
       id: selectedEmail.id,
       subject: selectedEmail.subject,
       from_name: selectedEmail.from_name,
       from_email: selectedEmail.from_email,
       body_html: selectedEmail.body_html,
-      difficulty: selectedEmail.difficulty,
+      difficulty: difficulty || 'medium', // Fallback to medium if still missing
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

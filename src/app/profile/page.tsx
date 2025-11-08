@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { getUserBadges, BADGES } from '@/lib/badges';
 
 interface Profile {
@@ -25,6 +26,10 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameValue, setUsernameValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -49,9 +54,84 @@ export default function ProfilePage() {
 
         if (profileData) {
           setProfile(profileData);
+          setUsernameValue(profileData.username || '');
         }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        // Fetch stats
+    fetchProfile();
+  }, [router, supabase]);
+
+  const handleSaveUsername = async () => {
+    if (!usernameValue.trim()) {
+      setError('Username cannot be empty');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: usernameValue.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          setError('Username already taken');
+        } else {
+          setError(data.error || 'Failed to update username');
+        }
+        setSaving(false);
+        return;
+      }
+
+      // Update local state
+      if (profile) {
+        setProfile({
+          ...profile,
+          username: data.profile.username,
+        });
+      }
+
+      setEditingUsername(false);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to save username:', error);
+      setError('Failed to save username');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUsername(false);
+    setUsernameValue(profile?.username || '');
+    setError(null);
+  };
+
+  // Fetch stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      try {
         const { count: totalGuesses } = await supabase
           .from('guesses')
           .select('*', { count: 'exact', head: true })
@@ -73,14 +153,14 @@ export default function ProfilePage() {
           accuracy: Math.round(accuracy * 100) / 100,
         });
       } catch (error) {
-        console.error('Failed to fetch profile:', error);
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch stats:', error);
       }
     };
 
-    fetchProfile();
-  }, [router, supabase]);
+    if (profile) {
+      fetchStats();
+    }
+  }, [profile, supabase]);
 
   if (loading) {
     return (
@@ -90,44 +170,10 @@ export default function ProfilePage() {
     );
   }
 
+  const hasUsername = profile?.username && profile.username.trim().length > 0;
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-            PhishGuard
-          </h1>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/play"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              Play
-            </Link>
-            <Link
-              href="/leaderboard"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              Leaderboard
-            </Link>
-            <Link
-              href="/resources"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              Resources
-            </Link>
-            <form action="/api/auth/logout" method="POST">
-              <button
-                type="submit"
-                className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-              >
-                Logout
-              </button>
-            </form>
-          </div>
-        </div>
-      </nav>
-
       <main className="mx-auto max-w-4xl px-4 py-8">
         <h2 className="mb-6 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
           Profile
@@ -184,12 +230,89 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
                   Username
                 </div>
-                <div className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                  {profile?.username || 'Not set'}
-                </div>
+                {!hasUsername ? (
+                  // Show form to set username
+                  <div className="space-y-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter username"
+                      value={usernameValue}
+                      onChange={(e) => {
+                        setUsernameValue(e.target.value);
+                        setError(null);
+                      }}
+                      disabled={saving}
+                      className="max-w-xs"
+                    />
+                    {error && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSaveUsername}
+                        disabled={saving || !usernameValue.trim()}
+                        size="sm"
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : editingUsername ? (
+                  // Show edit form
+                  <div className="space-y-2">
+                    <Input
+                      type="text"
+                      value={usernameValue}
+                      onChange={(e) => {
+                        setUsernameValue(e.target.value);
+                        setError(null);
+                      }}
+                      disabled={saving}
+                      className="max-w-xs"
+                    />
+                    {error && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSaveUsername}
+                        disabled={saving || !usernameValue.trim()}
+                        size="sm"
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </Button>
+                      <Button
+                        onClick={handleCancelEdit}
+                        disabled={saving}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // Show username with edit button
+                  <div className="space-y-2">
+                    <div className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
+                      {profile?.username}
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setEditingUsername(true);
+                        setUsernameValue(profile?.username || '');
+                        setError(null);
+                      }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                )}
               </div>
               <div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -297,4 +420,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

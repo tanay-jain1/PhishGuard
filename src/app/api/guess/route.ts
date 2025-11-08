@@ -118,23 +118,14 @@ export async function POST(request: Request) {
     // 5. Compute newStreak: if correct then streak+1 else 0
     const newStreak = correct ? currentStreak + 1 : 0;
 
-    // 6. Convert difficulty from text to number (easy=1, medium=2, hard=3)
-    let difficultyNum: 1 | 2 | 3 = 1;
-    if (email.difficulty === 'medium') {
-      difficultyNum = 2;
-    } else if (email.difficulty === 'hard') {
-      difficultyNum = 3;
-    }
+    // 6. Compute pointsDelta: +1 if correct, -1 if incorrect
+    const pointsDelta = pointsFor(correct);
 
-    // 7. Compute pointsDelta = pointsFor(difficulty, correct, newStreak)
-    // IMPORTANT: newStreak is used here so streak bonus applies in the same transaction
-    const pointsDelta = pointsFor(difficultyNum, correct, newStreak);
+    // 7. Update points: currentPoints + pointsDelta, but never below 0
+    // Points can decrease on wrong answers but never go negative
+    const newPoints = Math.max(0, currentPoints + pointsDelta);
 
-    // 8. Update cumulative points = points + pointsDelta (DO NOT reset on incorrect)
-    // Points are ALWAYS cumulative - never reset, never decrease
-    const newPoints = currentPoints + pointsDelta;
-
-    // 9. Insert guess row FIRST (before profile update to ensure accuracy calculation includes this guess)
+    // 8. Insert guess row FIRST (before profile update to ensure accuracy calculation includes this guess)
     const { error: guessError } = await supabase
       .from('guesses')
       .insert({
@@ -157,7 +148,7 @@ export async function POST(request: Request) {
       // Continue anyway - we'll still update profile
     }
 
-    // 10. Recompute accuracy = correct_count / total_count from guesses table
+    // 9. Recompute accuracy = correct_count / total_count from guesses table
     // This MUST be done after inserting the guess to get accurate counts
     const { count: totalGuesses } = await supabase
       .from('guesses')
@@ -174,8 +165,11 @@ export async function POST(request: Request) {
     const correctGuessesCount = correctGuesses || 0;
     const accuracy = totalGuessesCount > 0 ? correctGuessesCount / totalGuessesCount : 0;
 
-    // 11. Compute updated badges = nextBadges(points, streak, currentBadges)
+    // 10. Compute updated badges = nextBadges(points, streak, currentBadges)
     const updatedBadges = nextBadges(newPoints, newStreak, currentBadges);
+
+    // 11. Determine newly unlocked badges (for response)
+    const unlockedBadges = updatedBadges.filter(badge => !currentBadges.includes(badge));
 
     // 12. Update profile in ONE statement: points, streak, badges
     // Use upsert with onConflict to ensure atomic update (no race conditions)
@@ -185,7 +179,7 @@ export async function POST(request: Request) {
       .upsert(
         {
           id: userId,
-          points: newPoints, // Cumulative points (never reset, never decrease)
+          points: newPoints, // Updated points (can decrease but never below 0)
           streak: newStreak, // Reset to 0 on incorrect, increment on correct
           badges: updatedBadges, // Updated badge array
           email: authUser?.email || profile?.email || '',
@@ -205,30 +199,29 @@ export async function POST(request: Request) {
       return NextResponse.json({
         correct,
         pointsDelta,
-        profileSnapshot: {
+        profile: {
           points: newPoints,
           streak: newStreak,
-          accuracy: Math.round(accuracy * 10000) / 100, // As percentage (0-100)
           badges: updatedBadges,
         },
+        unlockedBadges: unlockedBadges.length > 0 ? unlockedBadges : undefined,
         difficulty: email.difficulty,
         explanation: email.explanation,
         featureFlags: (email.features as string[]) || [],
       });
     }
 
-    // 13. Return single source of truth snapshot from database
-    // Use the actual values from the database (updatedProfile) as the source of truth
-    // Accuracy is computed from guesses table, not stored in profile
+    // 13. Return response with all data needed for immediate UI update
+    // This allows the UI to update header points/streak and show unlocked badges without another request
     return NextResponse.json({
       correct,
       pointsDelta,
-      profileSnapshot: {
+      profile: {
         points: updatedProfile?.points ?? newPoints,
         streak: updatedProfile?.streak ?? newStreak,
-        accuracy: Math.round(accuracy * 10000) / 100, // As percentage (0-100), rounded to 2 decimals
         badges: (updatedProfile?.badges as string[]) ?? updatedBadges,
       },
+      unlockedBadges: unlockedBadges.length > 0 ? unlockedBadges : undefined,
       difficulty: email.difficulty,
       explanation: email.explanation,
       featureFlags: (email.features as string[]) || [],
