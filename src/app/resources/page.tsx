@@ -52,35 +52,35 @@ export default function ResourcesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="min-h-screen">
+      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-xl font-bold text-[#1b2a49]">
             PhishGuard
           </h1>
           <div className="flex items-center gap-4">
             <Link
               href="/play"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
             >
               Play
             </Link>
             <Link
               href="/leaderboard"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
             >
               Leaderboard
             </Link>
             <Link
               href="/profile"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
             >
               Profile
             </Link>
             <form action="/api/auth/logout" method="POST">
               <button
                 type="submit"
-                className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
               >
                 Logout
               </button>
@@ -90,7 +90,7 @@ export default function ResourcesPage() {
       </nav>
 
       <main className="mx-auto max-w-4xl px-4 py-8">
-        <h2 className="mb-6 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+        <h2 className="mb-6 text-3xl font-bold text-[#1b2a49]">
           Resources
         </h2>
 
@@ -98,17 +98,17 @@ export default function ResourcesPage() {
           {resources.map((resource, index) => (
             <div
               key={index}
-              className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+              className="rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm p-4 shadow-md"
             >
               <a
                 href={resource.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block text-lg font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                className="block text-lg font-semibold text-[#1b2a49] hover:text-[#2e4e3f] underline transition-colors"
               >
                 {resource.name}
               </a>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 text-sm text-[#1b2a49]/80">
                 {resource.description}
               </p>
             </div>

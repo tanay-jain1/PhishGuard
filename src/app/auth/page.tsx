@@ -49,28 +49,28 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
-      <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-        <h1 className="mb-6 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+    <div className="flex min-h-screen items-center justify-center p-4 sm:p-6 md:p-8">
+      <div className="w-full max-w-md rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm p-8 shadow-xl">
+        <h1 className="mb-6 text-3xl font-bold text-[#1b2a49]">
           {isLogin ? 'Sign In' : 'Sign Up'}
         </h1>
         <form onSubmit={handleAuth} className="space-y-4">
           {!isLogin && (
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label className="block text-sm font-medium text-[#1b2a49]">
                 Username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+                className="mt-1 w-full rounded-lg border border-[#f5f0e6] bg-white px-3 py-2 text-[#1b2a49] focus:border-[#1b2a49] focus:outline-none focus:ring-2 focus:ring-[#1b2a49]/20"
                 placeholder="Choose a username"
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="block text-sm font-medium text-[#1b2a49]">
               Email
             </label>
             <input
@@ -78,12 +78,12 @@ export default function AuthPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+              className="mt-1 w-full rounded-lg border border-[#f5f0e6] bg-white px-3 py-2 text-[#1b2a49] focus:border-[#1b2a49] focus:outline-none focus:ring-2 focus:ring-[#1b2a49]/20"
               placeholder="you@example.com"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="block text-sm font-medium text-[#1b2a49]">
               Password
             </label>
             <input
@@ -92,31 +92,31 @@ export default function AuthPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+              className="mt-1 w-full rounded-lg border border-[#f5f0e6] bg-white px-3 py-2 text-[#1b2a49] focus:border-[#1b2a49] focus:outline-none focus:ring-2 focus:ring-[#1b2a49]/20"
               placeholder="••••••••"
             />
           </div>
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-200">
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
               {error}
             </div>
           )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-zinc-900 px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="w-full rounded-xl bg-[#1b2a49] px-4 py-3 font-semibold text-white transition-all duration-300 hover:bg-[#2e4e3f] disabled:opacity-50 shadow-md hover:shadow-lg"
           >
             {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Sign Up'}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-4 text-center text-sm text-[#1b2a49]/70">
           {isLogin ? "Don't have an account? " : 'Already have an account? '}
           <button
             onClick={() => {
               setIsLogin(!isLogin);
               setError(null);
             }}
-            className="font-medium text-zinc-900 underline dark:text-zinc-50"
+            className="font-semibold text-[#1b2a49] underline hover:text-[#2e4e3f]"
           >
             {isLogin ? 'Sign up' : 'Sign in'}
           </button>
@@ -125,4 +125,3 @@ export default function AuthPage() {
     </div>
   );
 }
-

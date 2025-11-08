@@ -189,42 +189,61 @@ export default function PlayPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+        <p className="text-[#1b2a49]/70">Loading...</p>
       </div>
     );
   }
 
   if (!email) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-zinc-600 dark:text-zinc-400">No more emails!</p>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="text-center rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm p-8 shadow-xl max-w-md w-full">
+          <h2 className="mb-4 text-2xl font-bold text-[#1b2a49]">
+            No more emails!
+          </h2>
+          <p className="mb-4 text-[#1b2a49]/80">
+            You've completed all available emails. Great job!
+          </p>
+          <button
+            onClick={() => router.push('/leaderboard')}
+            className="rounded-xl bg-[#1b2a49] px-6 py-3 font-semibold text-white transition-all duration-300 hover:bg-[#2e4e3f] shadow-md hover:shadow-lg"
+          >
+            View Leaderboard
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="min-h-screen">
+      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-xl font-bold text-[#1b2a49]">
             PhishGuard
           </h1>
-          <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+          <div className="flex items-center gap-4 text-sm text-[#1b2a49]/70">
             {profile && (
               <>
                 <span>
-                  Points: <span className="font-semibold">{profile.points}</span>
+                  Points: <span className="font-semibold text-[#1b2a49]">{profile.points}</span>
                 </span>
                 <span>
-                  Streak: <span className="font-semibold">{profile.streak}</span>
+                  Streak: <span className="font-semibold text-[#1b2a49]">{profile.streak}</span>
                 </span>
               </>
             )}
             <button
               onClick={() => router.push('/leaderboard')}
-              className="hover:text-zinc-900 dark:hover:text-zinc-50"
+              className="hover:text-[#1b2a49] font-medium transition-colors"
             >
               Leaderboard
+            </button>
+            <button
+              onClick={() => router.push('/resources')}
+              className="hover:text-[#1b2a49] font-medium transition-colors"
+            >
+              Resources
             </button>
           </div>
         </div>
@@ -232,7 +251,7 @@ export default function PlayPage() {
 
       <main className="mx-auto max-w-4xl px-4 py-8">
         <div className="mb-6 text-center">
-          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h2 className="mb-2 text-2xl font-bold text-[#1b2a49]">
             Is this email a phishing attempt?
           </h2>
         </div>

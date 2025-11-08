@@ -26,6 +26,7 @@ export default function VerdictModal({
   mlProbPhish,
   mlReasons,
   mlTokens,
+  onClose,
   onNext,
 }: VerdictModalProps) {
   useEffect(() => {
@@ -43,17 +44,17 @@ export default function VerdictModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <Card className="w-full max-w-2xl">
+      <Card className="w-full max-w-2xl border-2 border-[#f5f0e6] bg-white/95 backdrop-blur-sm shadow-2xl">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-2xl font-bold">
+            <CardTitle className="text-2xl font-bold text-[#1b2a49]">
               {isCorrect ? '✅ Correct!' : '❌ Incorrect'}
             </CardTitle>
             <div
               className={`rounded-full px-4 py-2 text-lg font-semibold ${
                 isCorrect
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                  : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                  ? 'bg-[#2e4e3f]/20 text-[#2e4e3f] border-2 border-[#2e4e3f]/30'
+                  : 'bg-red-100 text-red-800 border-2 border-red-200'
               }`}
             >
               {pointsDelta > 0 ? `+${pointsDelta}` : '0'} points
@@ -62,25 +63,25 @@ export default function VerdictModal({
         </CardHeader>
         <CardContent className="space-y-4">
           <div
-            className={`rounded-lg p-4 ${
+            className={`rounded-xl p-4 ${
               isCorrect
-                ? 'bg-green-50 dark:bg-green-900/20'
-                : 'bg-red-50 dark:bg-red-900/20'
+                ? 'bg-[#2e4e3f]/10 border-2 border-[#2e4e3f]/30'
+                : 'bg-red-50 border-2 border-red-200'
             }`}
           >
-            <p className="text-zinc-900 dark:text-zinc-50">{explanation}</p>
+            <p className="text-[#1b2a49] leading-relaxed">{explanation}</p>
           </div>
 
           {featureFlags.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              <h3 className="mb-3 text-sm font-semibold text-[#1b2a49]">
                 Red Flags:
               </h3>
               <div className="flex flex-wrap gap-2">
                 {featureFlags.slice(0, 4).map((flag, index) => (
                   <span
                     key={index}
-                    className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    className="rounded-full bg-[#f5f0e6] px-3 py-1 text-xs font-medium text-[#1b2a49] border border-[#f5f0e6]"
                   >
                     {flag}
                   </span>
@@ -90,24 +91,24 @@ export default function VerdictModal({
           )}
 
           {mlProbPhish !== undefined && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-              <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            <div className="rounded-xl border-2 border-[#f5f0e6] bg-[#dbeafe]/20 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-[#1b2a49]">
                 Model Assist
               </h3>
               <div className="mb-3">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                <span className="text-sm text-[#1b2a49]/70">
                   Phishing probability:{' '}
                 </span>
-                <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                <span className="text-lg font-semibold text-[#1b2a49]">
                   {Math.round(mlProbPhish * 100)}%
                 </span>
               </div>
               {mlReasons && mlReasons.length > 0 && (
                 <div className="mb-2">
-                  <p className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  <p className="mb-1 text-xs font-medium text-[#1b2a49]/70">
                     Reasons:
                   </p>
-                  <ul className="list-inside list-disc space-y-1 text-xs text-zinc-700 dark:text-zinc-300">
+                  <ul className="list-inside list-disc space-y-1 text-xs text-[#1b2a49]/80">
                     {mlReasons.slice(0, 3).map((reason, index) => (
                       <li key={index}>{reason}</li>
                     ))}
@@ -116,14 +117,14 @@ export default function VerdictModal({
               )}
               {mlTokens && mlTokens.length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  <p className="mb-1 text-xs font-medium text-[#1b2a49]/70">
                     Features:
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {mlTokens.slice(0, 3).map((token, index) => (
                       <span
                         key={index}
-                        className="rounded bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300"
+                        className="rounded bg-[#f5f0e6] px-2 py-0.5 text-xs text-[#1b2a49] border border-[#f5f0e6]"
                       >
                         {token}
                       </span>
@@ -134,8 +135,18 @@ export default function VerdictModal({
             </div>
           )}
 
-          <div className="flex justify-end pt-4">
-            <Button onClick={onNext} className="w-full sm:w-auto">
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              onClick={onClose}
+              variant="outline"
+              className="rounded-xl border border-[#1b2a49] bg-white text-[#1b2a49] hover:bg-[#f5f0e6]"
+            >
+              Review
+            </Button>
+            <Button
+              onClick={onNext}
+              className="rounded-xl bg-[#1b2a49] text-white hover:bg-[#2e4e3f] w-full sm:w-auto"
+            >
               Next
             </Button>
           </div>

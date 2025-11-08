@@ -55,41 +55,41 @@ export default function LeaderboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+        <p className="text-[#1b2a49]/70">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="min-h-screen">
+      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-xl font-bold text-[#1b2a49]">
             PhishGuard
           </h1>
           <div className="flex items-center gap-4">
             <Link
               href="/play"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
             >
               Play
             </Link>
             <Link
               href="/profile"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
             >
               Profile
             </Link>
             <Link
               href="/resources"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
             >
               Resources
             </Link>
             <form action="/api/auth/logout" method="POST">
               <button
                 type="submit"
-                className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
               >
                 Logout
               </button>
@@ -99,61 +99,61 @@ export default function LeaderboardPage() {
       </nav>
 
       <main className="mx-auto max-w-4xl px-4 py-8">
-        <h2 className="mb-6 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+        <h2 className="mb-6 text-3xl font-bold text-[#1b2a49]">
           Leaderboard
         </h2>
 
         {entries.length === 0 ? (
-          <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-zinc-600 dark:text-zinc-400">
+          <div className="rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm p-8 text-center shadow-md">
+            <p className="text-[#1b2a49]/70 mb-4">
               No scores yet. Be the first to play!
             </p>
             <Link
               href="/play"
-              className="mt-4 inline-block rounded-md bg-zinc-900 px-4 py-2 text-white dark:bg-zinc-50 dark:text-zinc-900"
+              className="inline-block rounded-xl bg-[#1b2a49] px-6 py-3 font-semibold text-white transition-all duration-300 hover:bg-[#2e4e3f] shadow-md hover:shadow-lg"
             >
               Start Playing
             </Link>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="overflow-hidden rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm shadow-xl">
             <table className="w-full">
-              <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800/50">
+              <thead className="border-b-2 border-[#f5f0e6] bg-[#dbeafe]/30">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#1b2a49]">
                     Rank
                   </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-[#1b2a49]">
                     Username
                   </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
                     Points
                   </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
                     Accuracy
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+              <tbody className="divide-y divide-[#f5f0e6]">
                 {entries.map((entry, index) => (
                   <tr
                     key={entry.userId}
                     className={
                       entry.userId === currentUserId
-                        ? 'bg-blue-50 dark:bg-blue-900/20'
-                        : ''
+                        ? 'bg-[#dbeafe]/40'
+                        : 'hover:bg-[#f5f0e6]/30'
                     }
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                    <td className="px-6 py-4 text-sm font-medium text-[#1b2a49]">
                       {index + 1}
                     </td>
-                    <td className="px-6 py-4 text-sm text-zinc-900 dark:text-zinc-50">
+                    <td className="px-6 py-4 text-sm text-[#1b2a49]">
                       {entry.username}
                     </td>
-                    <td className="px-6 py-4 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    <td className="px-6 py-4 text-right text-sm font-semibold text-[#1b2a49]">
                       {entry.points}
                     </td>
-                    <td className="px-6 py-4 text-right text-sm text-zinc-600 dark:text-zinc-400">
+                    <td className="px-6 py-4 text-right text-sm text-[#1b2a49]/70">
                       {entry.accuracy.toFixed(1)}%
                     </td>
                   </tr>
