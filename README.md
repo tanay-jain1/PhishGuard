@@ -210,6 +210,78 @@ The app will automatically build and deploy on every push to main.
 - Clear `.next` directory: `rm -rf .next`
 - Reinstall dependencies: `rm -rf node_modules && npm install`
 
+## ML Integration (Amazon Bedrock)
+
+PhishGuard supports optional ML-powered email classification using Amazon Bedrock. When enabled, the verdict modal displays ML-assisted analysis alongside heuristic results.
+
+### Required Environment Variables
+
+To enable Bedrock integration, set the following environment variables:
+
+```env
+USE_BEDROCK=1
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+
+**Supported Models:**
+- `anthropic.claude-3-haiku-20240307-v1:0` (Claude 3 Haiku)
+- `anthropic.claude-3-sonnet-20240229-v1:0` (Claude 3 Sonnet)
+- `amazon.titan-text-lite-v1` (Titan Text Lite)
+- Other Bedrock-compatible models
+
+### Security Notes
+
+⚠️ **Never commit AWS credentials to version control**
+
+- Use Vercel project environment variables for production
+- Consider using a proxy backend to keep credentials server-side
+- Content is automatically truncated to ~4000 characters before sending to ML to avoid sending PII
+- Review your AWS IAM policies to ensure least-privilege access
+
+### Testing Locally
+
+To test ML integration locally:
+
+```bash
+USE_BEDROCK=1 AWS_REGION=us-east-1 BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0 AWS_ACCESS_KEY_ID=your_key AWS_SECRET_ACCESS_KEY=your_secret npm run dev
+```
+
+Or add these variables to your `.env.local` file:
+
+```env
+USE_BEDROCK=1
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+
+### Troubleshooting
+
+**Permission errors (IAM):**
+- Ensure your AWS credentials have `bedrock:InvokeModel` permission
+- Check IAM policies allow access to the specified model ID
+- Verify the AWS region matches your Bedrock model availability
+
+**Model not found:**
+- Verify `BEDROCK_MODEL_ID` matches an available model in your region
+- Check model availability in [AWS Bedrock Console](https://console.aws.amazon.com/bedrock/)
+- Some models require access request approval before use
+
+**Rate limits:**
+- Bedrock has per-model rate limits (tokens per minute)
+- If you hit limits, consider using a different model or implementing retry logic
+- Check CloudWatch metrics for detailed rate limit information
+
+**ML section not appearing:**
+- Verify `USE_BEDROCK=1` is set
+- Check browser console for ML classification errors
+- Ensure all required AWS environment variables are present
+- ML failures are non-blocking; verdict will still display without ML data
+
 ## Contributing
 
 This is a hackathon project. Feel free to fork and improve!

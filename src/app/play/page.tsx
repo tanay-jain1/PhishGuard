@@ -28,12 +28,19 @@ interface VerdictData {
   featureFlags: string[];
 }
 
+interface MlData {
+  prob_phish?: number;
+  reasons?: string[];
+  topTokens?: string[];
+}
+
 export default function PlayPage() {
   const [email, setEmail] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showVerdict, setShowVerdict] = useState(false);
   const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
+  const [mlData, setMlData] = useState<MlData | null>(null);
   const [profile, setProfile] = useState<{ points: number; streak: number } | null>(null);
   const router = useRouter();
   const supabase = createClient();
@@ -123,6 +130,38 @@ export default function PlayPage() {
       setVerdictData(data);
       setProfile(data.profileSnapshot);
       setShowVerdict(true);
+
+      // Fetch ML classification if available
+      if (email) {
+        try {
+          const mlResponse = await fetch('/api/ml/classify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              subject: email.subject,
+              body_html: email.body_html,
+              from_email: email.from_email,
+              from_name: email.from_name,
+            }),
+          });
+
+          if (mlResponse.ok) {
+            const mlResult = await mlResponse.json();
+            if (mlResult.ml) {
+              setMlData({
+                prob_phish: mlResult.ml.prob_phish,
+                reasons: mlResult.ml.reasons,
+                topTokens: mlResult.ml.topTokens,
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch ML classification:', error);
+          // Silently fail - don't block verdict
+        }
+      }
     } catch (error) {
       console.error('Failed to submit guess:', error);
     } finally {
@@ -133,6 +172,7 @@ export default function PlayPage() {
   const handleNext = async () => {
     setShowVerdict(false);
     setVerdictData(null);
+    setMlData(null);
 
     const {
       data: { user },
@@ -216,6 +256,9 @@ export default function PlayPage() {
           pointsDelta={verdictData.pointsDelta}
           explanation={verdictData.explanation}
           featureFlags={verdictData.featureFlags}
+          mlProbPhish={mlData?.prob_phish}
+          mlReasons={mlData?.reasons}
+          mlTokens={mlData?.topTokens}
           onClose={() => setShowVerdict(false)}
           onNext={handleNext}
         />
