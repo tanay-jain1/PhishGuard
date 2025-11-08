@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:emails": "tsx scripts/seed-emails.ts"
+    "seed:emails": "tsx scripts/seed-emails.ts",
+    "test:bedrock": "tsx scripts/test-bedrock.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.927.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.80.0",

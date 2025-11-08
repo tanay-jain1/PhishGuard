@@ -110,10 +110,16 @@ Only return valid JSON, no additional text.`;
       }
 
       // Invoke model
+      // For newer Claude models (3.5+), we may need to use inference profiles
+      // Check if this is an inference profile (contains "inference-profile" or is a profile ARN)
+      const isInferenceProfile = this.modelId.includes('inference-profile') || this.modelId.startsWith('arn:aws:bedrock');
+      
       const command = new InvokeModelCommand({
         modelId: this.modelId,
         contentType,
         body,
+        // For inference profiles, we might need to specify accept header
+        accept: isInferenceProfile ? 'application/json' : undefined,
       });
 
       const response = await this.client.send(command);
