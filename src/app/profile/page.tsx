@@ -91,7 +91,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <nav className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
             PhishGuard
           </h1>

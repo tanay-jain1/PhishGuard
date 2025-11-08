@@ -57,13 +57,6 @@ export default async function Home() {
             >
               Get Started
             </Link>
-
-            <Link
-              href="/resources"
-              className="group block w-full rounded-xl border border-[#1b2a49] bg-white px-8 py-4 text-center text-base sm:text-lg font-semibold text-[#1b2a49] transition-all duration-300 hover:bg-[#f5f0e6] hover:shadow-md hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#1b2a49] focus:ring-offset-2"
-            >
-              Learn More
-            </Link>
           </div>
 
           {/* Accent Line */}

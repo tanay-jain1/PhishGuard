@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { Logo } from "@/components/Logo";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-sans antialiased bg-gradient-to-b from-white to-[#dbeafe] min-h-screen`}
       >
+        <Logo />
         {children}
       </body>
     </html>

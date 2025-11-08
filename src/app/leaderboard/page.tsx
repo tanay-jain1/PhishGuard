@@ -63,7 +63,7 @@ export default function LeaderboardPage() {
   return (
     <div className="min-h-screen">
       <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
           <h1 className="text-xl font-bold text-[#1b2a49]">
             PhishGuard
           </h1>
