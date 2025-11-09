@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useProfileContext } from '@/providers/profile-provider';
 import EmailViewer from '@/components/EmailViewer';
 import GuessButtons from '@/components/GuessButtons';
 import VerdictModal from '@/components/VerdictModal';
@@ -19,13 +20,15 @@ interface Email {
 interface VerdictData {
   correct: boolean;
   pointsDelta: number;
-  profileSnapshot: {
+  profile: {
     points: number;
     streak: number;
-    accuracy: number;
+    badges: string[];
   };
+  unlockedBadges?: string[];
   explanation: string;
   featureFlags: string[];
+  difficulty?: string;
 }
 
 interface MlData {
@@ -41,42 +44,15 @@ export default function PlayPage() {
   const [showVerdict, setShowVerdict] = useState(false);
   const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
   const [mlData, setMlData] = useState<MlData | null>(null);
-  const [profile, setProfile] = useState<{ points: number; streak: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [consecutiveWrongs, setConsecutiveWrongs] = useState(0);
+  const { refreshProfile } = useProfileContext();
   const router = useRouter();
   const supabase = createClient();
 
-  useEffect(() => {
-    const initGame = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.push('/');
-        return;
-      }
-
-      // Initialize profile if needed
-      try {
-        await fetch('/api/auth/init', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id }),
-        });
-      } catch (error) {
-        console.error('Failed to init profile:', error);
-      }
-
-      // Fetch first email
-      await fetchNextEmail(user.id);
-    };
-
-    initGame();
-  }, [router, supabase]);
-
-  const fetchNextEmail = async (userId: string) => {
+  const fetchNextEmail = useCallback(async (userId: string) => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/emails/next', {
         headers: {
@@ -84,20 +60,99 @@ export default function PlayPage() {
         },
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(async () => {
+          const text = await response.text().catch(() => '');
+          console.error('API error - non-JSON response', {
+            status: response.status,
+            statusText: response.statusText,
+            text: text.substring(0, 200),
+          });
+          return null;
+        });
 
-      if (data.done) {
-        router.push('/leaderboard');
+        if (errorData && errorData.error) {
+          const errorMessage = typeof errorData.error === 'string' 
+            ? errorData.error 
+            : 'Failed to load emails';
+          setError(errorMessage);
+          alert(`Error: ${errorMessage}`);
+        } else {
+          const errorMessage = `Failed to load emails (${response.status}: ${response.statusText})`;
+          setError(errorMessage);
+          alert(errorMessage);
+        }
+        setLoading(false);
         return;
       }
 
-      setEmail(data);
+      const data = await response.json();
+      console.log('Email response:', data); // Debug log
+
+      // Only redirect to leaderboard if explicitly done
+      if (data.done === true) {
+        // Try to auto-generate emails when pool is empty
+        try {
+          const generateResponse = await fetch('/api/emails/auto-generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 20 }),
+          });
+          
+          if (generateResponse.ok) {
+            // Retry fetching email after generation
+            setTimeout(() => {
+              fetchNextEmail(userId);
+            }, 500);
+            return;
+          }
+        } catch (genError) {
+          console.error('Auto-generation failed:', genError);
+        }
+        
+        setError('No more emails available. All emails have been completed!');
+        // Don't auto-redirect, let user see the message
+        setLoading(false);
+        return;
+      }
+
+      // If we got an email, set it
+      if (data.id) {
+        setEmail(data);
+        setError(null);
+      } else {
+        console.error('No email data received:', data);
+        setError('No email data received from server');
+      }
     } catch (error) {
       console.error('Failed to fetch email:', error);
+      setError('Failed to fetch email. Please check if emails are seeded in the database.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const initGame = async () => {
+      // Get user - if no user, redirect to /auth
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.push('/auth');
+        return;
+      }
+
+      // Profile initialization is handled by useProfile hook and /api/auth/init
+      // Don't call it here as it would reset points/streak
+      
+      // Fetch first email
+      await fetchNextEmail(user.id);
+    };
+
+    initGame();
+  }, [fetchNextEmail, router, supabase]);
 
   const handleGuess = async (guessIsPhish: boolean) => {
     if (!email || submitting) return;
@@ -110,7 +165,7 @@ export default function PlayPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/');
+        router.push('/auth');
         return;
       }
 
@@ -126,10 +181,63 @@ export default function PlayPage() {
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(async () => {
+          const text = await response.text().catch(() => '');
+          console.error('API error - non-JSON response', {
+            status: response.status,
+            statusText: response.statusText,
+            text: text.substring(0, 200),
+          });
+          return null;
+        });
+
+        // Handle already_guessed error
+        if (response.status === 409 && errorData?.error === 'already_guessed') {
+          alert('You have already guessed this email. Fetching next email...');
+          await fetchNextEmail(user.id);
+          return;
+        }
+        
+        // Show friendly error message
+        if (errorData && errorData.error && typeof errorData.error === 'string') {
+          alert(`Error: ${errorData.error}`);
+        } else {
+          const errorMessage = `Failed to submit guess (${response.status}: ${response.statusText})`;
+          alert(errorMessage);
+          console.error('Failed to submit guess - no error details available', {
+            status: response.status,
+            statusText: response.statusText,
+          });
+        }
+        return;
+      }
+
       const data: VerdictData = await response.json();
 
-      setVerdictData(data);
-      setProfile(data.profileSnapshot);
+      // Validate response has required fields
+      if (typeof data.correct !== 'boolean') {
+        console.error('Invalid response: correct field is not boolean', data);
+        alert('Error: Invalid response from server');
+        return;
+      }
+
+      // IMPORTANT: Refresh profile from database BEFORE showing verdict
+      // This ensures the header shows the latest points/streak from DB
+      await refreshProfile();
+
+      // Ensure featureFlags is always an array
+      const verdictDataWithFlags: VerdictData = {
+        correct: data.correct,
+        pointsDelta: data.pointsDelta ?? 0,
+        profile: data.profile || { points: 0, streak: 0, badges: [] },
+        unlockedBadges: data.unlockedBadges,
+        explanation: data.explanation || '',
+        featureFlags: data.featureFlags || [],
+        difficulty: data.difficulty,
+      };
+
+      setVerdictData(verdictDataWithFlags);
       setShowVerdict(true);
 
       // Track consecutive wrong answers
@@ -187,7 +295,7 @@ export default function PlayPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      router.push('/');
+      router.push('/auth');
       return;
     }
 
@@ -204,26 +312,75 @@ export default function PlayPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-[#1b2a49]/70">Loading...</p>
+        <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (error && !email) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+            Click the button below to automatically generate new emails for the game.
+          </p>
+          <div className="flex flex-col gap-2 justify-center items-center">
+            <button
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  // Try to generate emails first
+                  const genResponse = await fetch('/api/emails/auto-generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count: 20 }),
+                  });
+                  
+                  if (genResponse.ok) {
+                    const genData = await genResponse.json();
+                    setError(`Generated ${genData.inserted || 0} new emails! Loading...`);
+                    // Wait a moment then fetch email
+                    setTimeout(async () => {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (user) await fetchNextEmail(user.id);
+                    }, 1000);
+                  } else {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) await fetchNextEmail(user.id);
+                  }
+                } catch {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) await fetchNextEmail(user.id);
+                }
+              }}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Generate Emails & Retry
+            </button>
+            <button
+              onClick={() => router.push('/leaderboard')}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Go to Leaderboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!email) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="text-center rounded-2xl border-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm p-8 shadow-xl max-w-md w-full">
-          <h2 className="mb-4 text-2xl font-bold text-[#1b2a49]">
-            No more emails!
-          </h2>
-          <p className="mb-4 text-[#1b2a49]/80">
-            You've completed all available emails. Great job!
-          </p>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">No more emails available!</p>
           <button
             onClick={() => router.push('/leaderboard')}
-            className="rounded-xl bg-[#1b2a49] px-6 py-3 font-semibold text-white transition-all duration-300 hover:bg-[#2e4e3f] shadow-md hover:shadow-lg"
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            View Leaderboard
+            Go to Leaderboard
           </button>
         </div>
       </div>
@@ -231,42 +388,10 @@ export default function PlayPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
-          <h1 className="text-xl font-bold text-[#1b2a49]">
-            PhishGuard
-          </h1>
-          <div className="flex items-center gap-4 text-sm text-[#1b2a49]/70">
-            {profile && (
-              <>
-                <span>
-                  Points: <span className="font-semibold text-[#1b2a49]">{profile.points}</span>
-                </span>
-                <span>
-                  Streak: <span className="font-semibold text-[#1b2a49]">{profile.streak}</span>
-                </span>
-              </>
-            )}
-            <button
-              onClick={() => router.push('/leaderboard')}
-              className="hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Leaderboard
-            </button>
-            <button
-              onClick={() => router.push('/resources')}
-              className="hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Resources
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <main className="mx-auto max-w-4xl px-4 py-8">
         <div className="mb-6 text-center">
-          <h2 className="mb-2 text-2xl font-bold text-[#1b2a49]">
+          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             Is this email a phishing attempt?
           </h2>
         </div>
@@ -294,6 +419,7 @@ export default function PlayPage() {
           mlReasons={mlData?.reasons}
           mlTokens={mlData?.topTokens}
           showRecapQuiz={showRecapQuiz}
+          unlockedBadges={verdictData.unlockedBadges}
           onClose={() => setShowVerdict(false)}
           onNext={handleNext}
           onQuizComplete={handleQuizComplete}

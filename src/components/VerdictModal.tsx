@@ -118,11 +118,12 @@ interface VerdictModalProps {
   isCorrect: boolean;
   pointsDelta: number;
   explanation: string;
-  featureFlags: string[];
+  featureFlags?: string[];
   mlProbPhish?: number;
   mlReasons?: string[];
   mlTokens?: string[];
   showRecapQuiz?: boolean;
+  unlockedBadges?: string[];
   onClose: () => void;
   onNext: () => void;
   onQuizComplete?: () => void;
@@ -138,6 +139,7 @@ export default function VerdictModal({
   mlReasons,
   mlTokens,
   showRecapQuiz = false,
+  unlockedBadges,
   onClose,
   onNext,
   onQuizComplete,
@@ -214,7 +216,26 @@ export default function VerdictModal({
             <p className="text-[#1b2a49] leading-relaxed">{explanation}</p>
           </div>
 
-          {featureFlags.length > 0 && (
+          {unlockedBadges && unlockedBadges.length > 0 && (
+            <div className="rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-[#1b2a49] flex items-center gap-2">
+                <span className="text-xl">🏆</span>
+                New Badge{unlockedBadges.length > 1 ? 's' : ''} Unlocked!
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {unlockedBadges.map((badge, index) => (
+                  <span
+                    key={index}
+                    className="rounded-full bg-yellow-200 px-4 py-2 text-sm font-semibold text-[#1b2a49] border-2 border-yellow-400 shadow-sm"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {featureFlags && featureFlags.length > 0 && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-[#1b2a49]">
                 Red Flags:

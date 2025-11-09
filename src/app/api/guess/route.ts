@@ -3,22 +3,35 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    // Get userId from Authorization header
+    const supabase = await createClient();
+
+    // Read userId from Authorization Bearer header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
-        { error: 'Missing or invalid Authorization header' },
+        { error: 'Unauthorized - missing or invalid Authorization header' },
         { status: 401 }
       );
     }
 
     const userId = authHeader.replace('Bearer ', '').trim();
     if (!userId) {
-      return NextResponse.json({ error: 'Invalid userId' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized - invalid userId' },
+        { status: 401 }
+      );
     }
 
     // Parse request body
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
     const { emailId, guessIsPhish } = body;
 
     if (!emailId || typeof guessIsPhish !== 'boolean') {
@@ -28,12 +41,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = await createClient();
-
-    // Get the email to check if it's phishing
+    // Load email row to get explanation and features
     const { data: email, error: emailError } = await supabase
       .from('emails')
-      .select('id, is_phish, explanation, features, difficulty')
+      .select('id, explanation, features, difficulty')
       .eq('id', emailId)
       .single();
 
@@ -44,122 +55,135 @@ export async function POST(request: Request) {
       );
     }
 
-    // Compute if guess is correct
-    const correct = email.is_phish === guessIsPhish;
+    // Call apply_guess RPC function
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('apply_guess', {
+      p_user: userId,
+      p_email: emailId,
+      p_guess: guessIsPhish,
+    });
 
-    // Get user's current profile
+    // Handle RPC errors
+    if (rpcError) {
+      console.error('RPC error details:', {
+        code: rpcError.code,
+        message: rpcError.message,
+        details: rpcError.details,
+        hint: rpcError.hint,
+        userId,
+        emailId,
+        guessIsPhish,
+      });
+
+      // Check for unique violation (already_guessed)
+      if (rpcError.code === '23505' || rpcError.message?.includes('already_guessed')) {
+        return NextResponse.json(
+          { error: 'already_guessed' },
+          { status: 409 }
+        );
+      }
+
+      // Check for email not found
+      if (rpcError.code === 'P0001' || rpcError.message?.includes('Email not found')) {
+        return NextResponse.json(
+          { error: 'Email not found', details: rpcError.message },
+          { status: 404 }
+        );
+      }
+
+      // Check if function doesn't exist
+      if (rpcError.code === '42883' || rpcError.message?.includes('function') && rpcError.message?.includes('does not exist')) {
+        console.error('ERROR: apply_guess function does not exist in database. Please run migration-apply-guess.sql in Supabase SQL editor.');
+        return NextResponse.json(
+          { 
+            error: 'Database function not found', 
+          details: 'The apply_guess function needs to be created in your database. Please run the migration SQL file.',
+            hint: 'Run migration-apply-guess.sql in Supabase SQL editor'
+          },
+          { status: 500 }
+        );
+      }
+
+      // Other errors
+      return NextResponse.json(
+        { 
+          error: 'Internal server error', 
+          details: rpcError.message,
+          code: rpcError.code,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!rpcResult) {
+      return NextResponse.json(
+        { error: 'No result from RPC' },
+        { status: 500 }
+      );
+    }
+
+    // The RPC function now returns profile data directly, so use it
+    // If profile is in the RPC result, use it; otherwise fetch separately
+    if (rpcResult.profile) {
+      console.log('Profile from RPC:', rpcResult.profile);
+      return NextResponse.json({
+        correct: rpcResult.correct,
+        pointsDelta: rpcResult.pointsDelta,
+        profile: {
+          points: rpcResult.profile.points ?? 0,
+          streak: rpcResult.profile.streak ?? 0,
+          accuracy: rpcResult.profile.accuracy ?? 0,
+          badges: (rpcResult.profile.badges as string[]) || [],
+        },
+        unlockedBadges: rpcResult.unlockedBadges || [],
+        explanation: email.explanation || '',
+        featureFlags: (email.features as string[]) || [],
+        difficulty: rpcResult.difficulty || email.difficulty,
+      });
+    }
+
+    // Fallback: fetch profile if RPC didn't return it (for backward compatibility)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('points, streak')
+      .select('points, streak, accuracy, badges')
       .eq('id', userId)
       .single();
 
-    if (profileError && profileError.code !== 'PGRST116') {
-      return NextResponse.json(
-        { error: 'Failed to fetch profile', details: profileError.message },
-        { status: 500 }
-      );
-    }
-
-    const currentPoints = profile?.points || 0;
-    const currentStreak = profile?.streak || 0;
-
-    // Calculate points: +1 base, +1 bonus every 5 streak
-    let pointsDelta = 0;
-    let newStreak = 0;
-
-    if (correct) {
-      pointsDelta = 1;
-      newStreak = currentStreak + 1;
-      // Bonus point every 5 streak
-      if (newStreak % 5 === 0) {
-        pointsDelta += 1;
-      }
-    } else {
-      // Reset streak on incorrect guess
-      newStreak = 0;
-    }
-
-    const newPoints = currentPoints + pointsDelta;
-
-    // Get total guesses and correct guesses for accuracy calculation
-    const { count: totalGuesses } = await supabase
-      .from('guesses')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    const { count: correctGuesses } = await supabase
-      .from('guesses')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('is_correct', true);
-
-    const newTotalGuesses = (totalGuesses || 0) + 1;
-    const newCorrectGuesses = (correctGuesses || 0) + (correct ? 1 : 0);
-    const accuracy = newTotalGuesses > 0 ? (newCorrectGuesses / newTotalGuesses) * 100 : 0;
-
-    // Upsert guess record
-    const { error: guessError } = await supabase.from('guesses').upsert(
-      {
-        user_id: userId,
-        email_id: emailId,
-        user_guess: guessIsPhish,
-        is_correct: correct,
-        points: pointsDelta,
-        created_at: new Date().toISOString(),
-      },
-      {
-        onConflict: 'user_id,email_id',
-      }
-    );
-
-    if (guessError) {
-      console.warn('Failed to upsert guess:', guessError.message);
-    }
-
-    // Update profile with new points, streak, and accuracy
-    const { data: updatedProfile, error: updateError } = await supabase
-      .from('profiles')
-      .upsert(
-        {
-          id: userId,
-          points: newPoints,
-          streak: newStreak,
-          updated_at: new Date().toISOString(),
+    if (profileError) {
+      console.error('Failed to fetch profile:', profileError);
+      return NextResponse.json({
+        correct: rpcResult.correct,
+        pointsDelta: rpcResult.pointsDelta,
+        profile: {
+          points: 0,
+          streak: 0,
+          accuracy: 0,
+          badges: [],
         },
-        {
-          onConflict: 'id',
-        }
-      )
-      .select()
-      .single();
-
-    if (updateError) {
-      return NextResponse.json(
-        {
-          error: 'Failed to update profile',
-          details: updateError.message,
-        },
-        { status: 500 }
-      );
+        unlockedBadges: rpcResult.unlockedBadges || [],
+        explanation: email.explanation || '',
+        featureFlags: (email.features as string[]) || [],
+        difficulty: rpcResult.difficulty || email.difficulty,
+      });
     }
 
-    // Return response with profile snapshot
+    console.log('Profile fetched from DB:', profile);
     return NextResponse.json({
-      correct,
-      pointsDelta,
-      profileSnapshot: {
-        points: newPoints,
-        streak: newStreak,
-        accuracy: Math.round(accuracy * 100) / 100, // Round to 2 decimal places
-        totalGuesses: newTotalGuesses,
-        correctGuesses: newCorrectGuesses,
+      correct: rpcResult.correct,
+      pointsDelta: rpcResult.pointsDelta,
+      profile: {
+        points: profile.points ?? 0,
+        streak: profile.streak ?? 0,
+        accuracy: profile.accuracy ?? 0,
+        badges: (profile.badges as string[]) || [],
       },
-      explanation: email.explanation,
-      featureFlags: email.features || [],
+      unlockedBadges: rpcResult.unlockedBadges || [],
+      explanation: email.explanation || '',
+      featureFlags: (email.features as string[]) || [],
+      difficulty: rpcResult.difficulty || email.difficulty,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Guess API error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: errorMessage },
       { status: 500 }

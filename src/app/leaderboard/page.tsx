@@ -7,12 +7,11 @@ import Link from 'next/link';
 
 interface LeaderboardEntry {
   userId: string;
-  username: string;
+  username: string | null;
   points: number;
+  streak: number;
   accuracy: number;
-  totalGuesses: number;
-  correctGuesses: number;
-  created_at: string;
+  created_at?: string;
 }
 
 export default function LeaderboardPage() {
@@ -36,14 +35,24 @@ export default function LeaderboardPage() {
       setCurrentUserId(user.id);
 
       try {
-        const response = await fetch('/api/leaderboard');
-        const data = await response.json();
+        // Fetch from server API route to ensure fresh data (no caching)
+        const response = await fetch('/api/leaderboard', {
+          cache: 'no-store',
+        });
 
-        if (data.entries) {
-          setEntries(data.entries);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Failed to fetch leaderboard:', errorData);
+          setEntries([]);
+          setLoading(false);
+          return;
         }
+
+        const { entries: leaderboardEntries } = await response.json();
+        setEntries(leaderboardEntries || []);
       } catch (error) {
         console.error('Failed to fetch leaderboard:', error);
+        setEntries([]);
       } finally {
         setLoading(false);
       }
@@ -51,6 +60,15 @@ export default function LeaderboardPage() {
 
     fetchData();
   }, [router, supabase]);
+
+  // Helper function to get display name (username or short id)
+  const getDisplayName = (username: string | null, userId: string): string => {
+    if (username && username.trim().length > 0) {
+      return username;
+    }
+    // Return first 8 characters of user ID
+    return userId.substring(0, 8);
+  };
 
   if (loading) {
     return (
@@ -62,42 +80,6 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen">
-      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
-          <h1 className="text-xl font-bold text-[#1b2a49]">
-            PhishGuard
-          </h1>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/play"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Play
-            </Link>
-            <Link
-              href="/profile"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Profile
-            </Link>
-            <Link
-              href="/resources"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Resources
-            </Link>
-            <form action="/api/auth/logout" method="POST">
-              <button
-                type="submit"
-                className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-              >
-                Logout
-              </button>
-            </form>
-          </div>
-        </div>
-      </nav>
-
       <main className="mx-auto max-w-4xl px-4 py-8">
         <h2 className="mb-6 text-3xl font-bold text-[#1b2a49]">
           Leaderboard
@@ -130,6 +112,9 @@ export default function LeaderboardPage() {
                     Points
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
+                    Streak
+                  </th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
                     Accuracy
                   </th>
                 </tr>
@@ -148,13 +133,16 @@ export default function LeaderboardPage() {
                       {index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm text-[#1b2a49]">
-                      {entry.username}
+                      {getDisplayName(entry.username, entry.userId)}
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-[#1b2a49]">
                       {entry.points}
                     </td>
+                    <td className="px-6 py-4 text-right text-sm text-[#1b2a49]">
+                      {entry.streak}
+                    </td>
                     <td className="px-6 py-4 text-right text-sm text-[#1b2a49]/70">
-                      {entry.accuracy.toFixed(1)}%
+                      {(entry.accuracy * 100).toFixed(1)}%
                     </td>
                   </tr>
                 ))}

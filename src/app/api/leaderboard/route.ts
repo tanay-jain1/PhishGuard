@@ -1,19 +1,35 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+export interface LeaderboardEntry {
+  userId: string;
+  username: string | null;
+  points: number;
+  streak: number;
+  accuracy: number;
+  created_at?: string;
+}
+
+/**
+ * Get leaderboard data (top 20 profiles)
+ * GET /api/leaderboard
+ * Returns fresh data from server (no caching)
+ */
 export async function GET() {
   try {
     const supabase = await createClient();
 
-    // Get all profiles with their guess statistics
-    const { data: profiles, error: profilesError } = await supabase
+    // Fetch profiles (we'll sort in JavaScript for multi-column sorting)
+    const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('id, username, points, created_at')
-      .order('created_at', { ascending: true });
+      .select('id, username, points, streak, accuracy, created_at')
+      .order('points', { ascending: false })
+      .limit(50); // Fetch more to ensure we get top 20 after sorting
 
-    if (profilesError) {
+    if (error) {
+      console.error('Failed to fetch leaderboard:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch profiles', details: profilesError.message },
+        { error: 'Failed to fetch leaderboard', details: error.message },
         { status: 500 }
       );
     }
@@ -22,57 +38,44 @@ export async function GET() {
       return NextResponse.json({ entries: [] });
     }
 
-    // Calculate accuracy for each user
-    const leaderboardEntries = await Promise.all(
-      profiles.map(async (profile) => {
-        const { count: totalGuesses } = await supabase
-          .from('guesses')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', profile.id);
+    // Map profiles to leaderboard entries
+    const leaderboardEntries: LeaderboardEntry[] = profiles.map((profile) => ({
+      userId: profile.id,
+      username: profile.username,
+      points: profile.points || 0,
+      streak: profile.streak || 0,
+      accuracy: profile.accuracy || 0,
+      created_at: profile.created_at,
+    }));
 
-        const { count: correctGuesses } = await supabase
-          .from('guesses')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', profile.id)
-          .eq('is_correct', true);
-
-        const total = totalGuesses || 0;
-        const correct = correctGuesses || 0;
-        const accuracy = total > 0 ? (correct / total) * 100 : 0;
-
-        return {
-          userId: profile.id,
-          username: profile.username || 'Anonymous',
-          points: profile.points || 0,
-          accuracy: Math.round(accuracy * 100) / 100,
-          totalGuesses: total,
-          correctGuesses: correct,
-          created_at: profile.created_at,
-        };
-      })
-    );
-
-    // Sort: points desc, accuracy desc, created_at asc
+    // Sort by points DESC, accuracy DESC, created_at ASC
     leaderboardEntries.sort((a, b) => {
+      // First by points (descending)
       if (b.points !== a.points) {
         return b.points - a.points;
       }
-      if (b.accuracy !== a.accuracy) {
-        return b.accuracy - a.accuracy;
+      // Then by accuracy (descending)
+      const aAccuracy = a.accuracy || 0;
+      const bAccuracy = b.accuracy || 0;
+      if (bAccuracy !== aAccuracy) {
+        return bAccuracy - aAccuracy;
       }
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      // Finally by created_at (ascending - earlier is better)
+      const aDate = new Date(a.created_at || 0).getTime();
+      const bDate = new Date(b.created_at || 0).getTime();
+      return aDate - bDate;
     });
 
-    // Return top 10
-    const top10 = leaderboardEntries.slice(0, 10);
+    // Take top 20
+    const top20 = leaderboardEntries.slice(0, 20);
 
-    return NextResponse.json({ entries: top10 });
+    return NextResponse.json({ entries: top20 });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Leaderboard API error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
 }
-

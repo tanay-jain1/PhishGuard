@@ -21,15 +21,30 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        router.push('/about');
+
+        // Initialize profile after successful login
+        if (data.user) {
+          try {
+            await fetch('/api/auth/init', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: data.user.id }),
+            });
+          } catch (initError) {
+            console.error('Failed to init profile:', initError);
+            // Continue anyway - profile will be created on play page
+          }
+        }
+
+        router.push('/play');
         router.refresh();
       } else {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -37,7 +52,22 @@ export default function AuthPage() {
           },
         });
         if (signUpError) throw signUpError;
-        router.push('/about');
+
+        // Initialize profile after successful signup
+        if (data.user) {
+          try {
+            await fetch('/api/auth/init', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: data.user.id }),
+            });
+          } catch (initError) {
+            console.error('Failed to init profile:', initError);
+            // Continue anyway - profile will be created on play page
+          }
+        }
+
+        router.push('/play');
         router.refresh();
       }
     } catch (err) {

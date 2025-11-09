@@ -282,6 +282,77 @@ AWS_SECRET_ACCESS_KEY=your_secret_key
 - Ensure all required AWS environment variables are present
 - ML failures are non-blocking; verdict will still display without ML data
 
+## Admin Email Generator
+
+PhishGuard includes an admin-only email generator that uses AWS Bedrock (Claude 3.5 Haiku) to create realistic email samples for the game. This allows the email pool to grow over time with diverse, high-quality examples.
+
+### Features
+
+- **AI-Powered Generation**: Uses Claude 3.5 Haiku via AWS Bedrock to generate realistic emails
+- **Automatic Fallback**: Falls back to a mock generator if Bedrock is not configured
+- **Smart Deduplication**: Automatically skips emails that already exist in the database
+- **On-the-Fly Computation**: Missing features/difficulty are computed using heuristics when emails are served
+- **Accumulating Pool**: Emails accumulate over time, expanding the game's content library
+
+### Access
+
+The admin generator is available at `/admin/generator` and requires:
+
+1. **Authentication**: User must be logged in
+2. **Authorization**: User email must be in `ADMIN_EMAILS` environment variable (comma-separated) OR user ID must be in the hardcoded admin list
+
+### Setup
+
+1. **Set Admin Emails** in `.env.local`:
+   ```env
+   ADMIN_EMAILS=admin@example.com,another-admin@example.com
+   ```
+
+2. **Optional: Configure Bedrock** (see ML Integration section above):
+   ```env
+   AWS_REGION=us-east-1
+   BEDROCK_MODEL_ID=anthropic.claude-3-5-haiku-20241022-v1:0
+   AWS_ACCESS_KEY_ID=your_access_key
+   AWS_SECRET_ACCESS_KEY=your_secret_key
+   ```
+
+3. **Service Role Key** (required for database writes):
+   ```env
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   ```
+
+### Usage
+
+1. Navigate to `/admin/generator` (must be logged in as admin)
+2. View current email statistics (total, by difficulty, phishing vs legitimate)
+3. Enter number of emails to generate (1-20)
+4. Click "Generate Emails"
+5. View results (inserted vs skipped duplicates)
+6. Statistics automatically refresh after generation
+
+### How It Works
+
+1. **Generation**: Uses Bedrock to generate diverse email samples (HR notices, deliveries, bank alerts, etc.)
+2. **Validation**: Each email is validated against a strict Zod schema
+3. **Normalization**: Emails are sanitized (removes scripts, external images) and scored
+4. **Deduplication**: Checks existing emails by `subject + from_email` to avoid duplicates
+5. **Storage**: New emails are inserted into `public.emails` table
+6. **Gameplay**: When players request emails, missing features/difficulty are computed on-the-fly using heuristics
+
+### Email Pool Management
+
+- **Initial Setup**: Use `npm run seed:emails` to seed initial emails from `src/data/emails.seed.json`
+- **Growth**: Admin generator adds new emails over time
+- **Exhaustion**: When a user has seen all emails, the API returns `{ done: true }`
+- **Features**: If an email lacks features/difficulty, they're computed automatically when served
+
+### Notes
+
+- Emails accumulate over time - the pool grows as admins generate new content
+- The generator creates diverse email types (HR, delivery, bank, school, newsletters, calendar invites)
+- Difficulty levels are automatically assigned (1=Easy, 2=Medium, 3=Hard) based on red flags
+- If Bedrock is unavailable, the generator falls back to a mock generator for development
+
 ## Contributing
 
 This is a hackathon project. Feel free to fork and improve!
