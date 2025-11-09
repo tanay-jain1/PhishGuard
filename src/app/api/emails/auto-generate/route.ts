@@ -39,37 +39,63 @@ export async function POST(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !serviceRoleKey) {
+    if (!supabaseUrl) {
+      console.error('❌ NEXT_PUBLIC_SUPABASE_URL is not configured');
       return NextResponse.json(
         { 
-          error: 'Server configuration error - service role key not configured',
-          hint: 'Add SUPABASE_SERVICE_ROLE_KEY to .env.local'
+          error: 'Server configuration error - Supabase URL not configured',
+          hint: 'Add NEXT_PUBLIC_SUPABASE_URL to Vercel environment variables'
         },
         { status: 500 }
       );
     }
 
-    // 4. Generate emails using bedrock (or mock)
-    console.log(`📧 Starting email generation for ${count} emails...`);
-    let items: Awaited<ReturnType<typeof generateEmails>> = [];
-    try {
-      items = await generateEmails(count);
-      console.log(`✅ Email generation completed: ${items?.length || 0} emails generated`);
-    } catch (error) {
-      console.error('❌ Email generation failed:', error);
+    if (!serviceRoleKey) {
+      console.error('❌ SUPABASE_SERVICE_ROLE_KEY is not configured');
       return NextResponse.json(
         { 
-          error: 'Email generation failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          error: 'Server configuration error - service role key not configured',
+          hint: 'Add SUPABASE_SERVICE_ROLE_KEY to Vercel environment variables. Get it from Supabase Dashboard > Settings > API > service_role key'
         },
         { status: 500 }
       );
     }
     
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      console.error('❌ No emails generated - items is empty or not an array');
+    console.log('✅ Service role key is configured');
+
+    // 4. Generate emails using bedrock (or mock)
+    console.log(`📧 Starting email generation for ${count} emails...`);
+    console.log(`🔧 Bedrock configured: ${process.env.AWS_REGION ? 'Yes' : 'No'}`);
+    
+    let items: Awaited<ReturnType<typeof generateEmails>> = [];
+    try {
+      items = await generateEmails(count);
+      console.log(`✅ Email generation completed: ${items?.length || 0} emails generated`);
+      
+      if (!items || !Array.isArray(items)) {
+        console.error('❌ Generation returned non-array:', typeof items, items);
+        return NextResponse.json(
+          { error: 'Email generation returned invalid format', details: 'Expected array but got ' + typeof items },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error('❌ Email generation failed:', error);
+      const errorDetails = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       return NextResponse.json(
-        { error: 'No emails generated', details: 'Generation returned empty result' },
+        { 
+          error: 'Email generation failed',
+          details: errorDetails
+        },
+        { status: 500 }
+      );
+    }
+    
+    if (items.length === 0) {
+      console.error('❌ No emails generated - items array is empty');
+      return NextResponse.json(
+        { error: 'No emails generated', details: 'Generation returned empty array' },
         { status: 500 }
       );
     }
