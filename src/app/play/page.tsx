@@ -257,6 +257,7 @@ export default function PlayPage() {
       // Fetch ML classification if available
       if (email) {
         try {
+          console.log('Fetching ML classification for email:', email.subject);
           const mlResponse = await fetch('/api/ml/classify', {
             method: 'POST',
             headers: {
@@ -270,15 +271,32 @@ export default function PlayPage() {
             }),
           });
 
+          console.log('ML response status:', mlResponse.status, mlResponse.ok);
+
           if (mlResponse.ok) {
             const mlResult = await mlResponse.json();
+            console.log('ML result:', {
+              hasMl: !!mlResult.ml,
+              prob_phish: mlResult.ml?.prob_phish,
+              reasonsCount: mlResult.ml?.reasons?.length || 0,
+              tokensCount: mlResult.ml?.topTokens?.length || 0,
+              fullResult: mlResult,
+            });
+
             if (mlResult.ml) {
               // Only set ML data if we have meaningful insights (reasons or tokens)
               // Probability alone isn't enough - we need the detailed analysis
               const hasReasons = mlResult.ml.reasons && mlResult.ml.reasons.length > 0;
               const hasTokens = mlResult.ml.topTokens && mlResult.ml.topTokens.length > 0;
               
+              console.log('ML validation:', { hasReasons, hasTokens });
+              
               if (hasReasons || hasTokens) {
+                console.log('Setting ML data:', {
+                  prob_phish: mlResult.ml.prob_phish,
+                  reasons: mlResult.ml.reasons,
+                  topTokens: mlResult.ml.topTokens,
+                });
                 setMlData({
                   prob_phish: mlResult.ml.prob_phish,
                   reasons: mlResult.ml.reasons,
@@ -286,13 +304,25 @@ export default function PlayPage() {
                 });
               } else {
                 // ML returned probability but no insights - don't show Model Assist
-                console.warn('ML returned probability but no reasons/tokens - not showing Model Assist');
+                console.warn('ML returned probability but no reasons/tokens - not showing Model Assist', {
+                  prob_phish: mlResult.ml.prob_phish,
+                  reasons: mlResult.ml.reasons,
+                  topTokens: mlResult.ml.topTokens,
+                });
                 setMlData(null);
               }
+            } else {
+              console.warn('ML result does not contain ml property:', mlResult);
+              setMlData(null);
             }
+          } else {
+            const errorText = await mlResponse.text().catch(() => 'Unable to read error');
+            console.error('ML API returned error:', mlResponse.status, errorText);
+            setMlData(null);
           }
         } catch (error) {
           console.error('Failed to fetch ML classification:', error);
+          setMlData(null);
           // Silently fail - don't block verdict
         }
       }

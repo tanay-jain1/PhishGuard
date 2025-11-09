@@ -55,9 +55,20 @@ export async function POST(request: Request) {
     };
 
     // Run ML classification if Bedrock is enabled
-    if (process.env.USE_BEDROCK === '1') {
+    const useBedrock = process.env.USE_BEDROCK === '1';
+    console.log('ML classification check:', {
+      USE_BEDROCK: process.env.USE_BEDROCK,
+      useBedrock,
+      hasAwsRegion: !!process.env.AWS_REGION,
+      hasModelId: !!process.env.BEDROCK_MODEL_ID,
+      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+    });
+
+    if (useBedrock) {
       try {
         const mlProvider = await getMlProvider();
+        console.log('ML provider loaded:', mlProvider.constructor.name);
         
         // Truncate body_html to ~4000 chars before sending to ML
         const maxBodyLength = 4000;
@@ -66,11 +77,26 @@ export async function POST(request: Request) {
             ? body_html.substring(0, maxBodyLength)
             : body_html;
 
+        console.log('Calling ML provider with:', {
+          subject: subject.substring(0, 50),
+          bodyLength: truncatedBodyHtml.length,
+          from_email,
+          from_name,
+        });
+
         const mlResult = await mlProvider.classifyEmail({
           subject,
           body_html: truncatedBodyHtml,
           from_email: from_email || null,
           from_name: from_name || null,
+        });
+
+        console.log('ML provider returned:', {
+          prob_phish: mlResult.prob_phish,
+          hasReasons: !!mlResult.reasons && mlResult.reasons.length > 0,
+          hasTokens: !!mlResult.topTokens && mlResult.topTokens.length > 0,
+          reasons: mlResult.reasons,
+          topTokens: mlResult.topTokens,
         });
 
         // Include ML results if we have meaningful insights
@@ -84,7 +110,7 @@ export async function POST(request: Request) {
             reasons: mlResult.reasons,
             topTokens: mlResult.topTokens,
           };
-          console.log('ML classification successful:', {
+          console.log('ML classification successful - adding to response:', {
             prob_phish: mlResult.prob_phish,
             reasonsCount: mlResult.reasons?.length || 0,
             tokensCount: mlResult.topTokens?.length || 0,
@@ -95,12 +121,20 @@ export async function POST(request: Request) {
             prob_phish: mlResult.prob_phish,
             hasReasons: !!mlResult.reasons,
             hasTokens: !!mlResult.topTokens,
+            reasons: mlResult.reasons,
+            topTokens: mlResult.topTokens,
           });
         }
       } catch (error) {
         console.error('ML classification error:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         // Continue without ML results if ML fails
       }
+    } else {
+      console.log('ML classification skipped - USE_BEDROCK is not set to "1"');
     }
 
     return NextResponse.json(response);
