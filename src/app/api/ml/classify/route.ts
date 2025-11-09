@@ -73,11 +73,23 @@ export async function POST(request: Request) {
           from_name: from_name || null,
         });
 
-        response.ml = {
-          prob_phish: mlResult.prob_phish,
-          reasons: mlResult.reasons,
-          topTokens: mlResult.topTokens,
-        };
+        // Only include ML results if we have meaningful insights (reasons or tokens)
+        // Probability alone isn't enough - we need the detailed analysis
+        const hasReasons = mlResult.reasons && mlResult.reasons.length > 0;
+        const hasTokens = mlResult.topTokens && mlResult.topTokens.length > 0;
+
+        if (hasReasons || hasTokens) {
+          response.ml = {
+            prob_phish: mlResult.prob_phish,
+            reasons: mlResult.reasons,
+            topTokens: mlResult.topTokens,
+          };
+        } else {
+          // ML returned probability but no insights - likely a failure
+          console.warn('ML returned probability but no reasons/tokens - skipping ML section', {
+            prob_phish: mlResult.prob_phish,
+          });
+        }
       } catch (error) {
         console.error('ML classification error:', error);
         // Continue without ML results if ML fails

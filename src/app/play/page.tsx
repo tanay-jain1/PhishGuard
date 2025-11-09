@@ -273,11 +273,22 @@ export default function PlayPage() {
           if (mlResponse.ok) {
             const mlResult = await mlResponse.json();
             if (mlResult.ml) {
-              setMlData({
-                prob_phish: mlResult.ml.prob_phish,
-                reasons: mlResult.ml.reasons,
-                topTokens: mlResult.ml.topTokens,
-              });
+              // Only set ML data if we have meaningful insights (reasons or tokens)
+              // Probability alone isn't enough - we need the detailed analysis
+              const hasReasons = mlResult.ml.reasons && mlResult.ml.reasons.length > 0;
+              const hasTokens = mlResult.ml.topTokens && mlResult.ml.topTokens.length > 0;
+              
+              if (hasReasons || hasTokens) {
+                setMlData({
+                  prob_phish: mlResult.ml.prob_phish,
+                  reasons: mlResult.ml.reasons,
+                  topTokens: mlResult.ml.topTokens,
+                });
+              } else {
+                // ML returned probability but no insights - don't show Model Assist
+                console.warn('ML returned probability but no reasons/tokens - not showing Model Assist');
+                setMlData(null);
+              }
             }
           }
         } catch (error) {
