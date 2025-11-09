@@ -80,15 +80,23 @@ export async function POST(request: Request) {
     const validatedEmails: Array<ReturnType<typeof normalizeAndScore>> = [];
     const validationErrors: string[] = [];
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       try {
+        console.log(`📝 Validating email ${i + 1}/${items.length}:`, {
+          subject: item.subject?.substring(0, 50),
+          hasFeatures: !!item.features,
+          hasDifficulty: !!item.difficulty,
+        });
+        
         const validated = GeneratedEmailSchema.parse(item);
         const normalized = normalizeAndScore(validated);
         validatedEmails.push(normalized);
+        console.log(`✅ Email ${i + 1} validated and normalized`);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown validation error';
-        validationErrors.push(errorMsg);
-        console.warn('Email validation failed:', errorMsg);
+        validationErrors.push(`Email ${i + 1}: ${errorMsg}`);
+        console.warn(`❌ Email ${i + 1} validation failed:`, errorMsg, item);
       }
     }
 

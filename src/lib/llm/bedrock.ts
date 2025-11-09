@@ -326,16 +326,25 @@ export async function bedrockMockGenerateEmails(count: number): Promise<Generate
     const emailType = emailTypes[typeIndex];
     const isPhish = i % 2 === 0; // Alternate between phishing and legitimate
     
+    let emailToAdd: GeneratedEmail;
     if (isPhish && emailType.phishing) {
-      emails.push(emailType.phishing);
+      emailToAdd = emailType.phishing;
     } else if (!isPhish && emailType.legitimate) {
-      emails.push(emailType.legitimate);
+      emailToAdd = emailType.legitimate;
     } else {
       // Fallback
-      emails.push(emailType.legitimate || emailType.phishing);
+      emailToAdd = emailType.legitimate || emailType.phishing;
     }
+    
+    // Ensure features is always an array (even if empty) for consistency
+    if (!emailToAdd.features) {
+      emailToAdd.features = [];
+    }
+    
+    emails.push(emailToAdd);
   }
 
+  console.log(`✅ Mock generator created ${emails.length} emails`);
   return emails;
 }
 
