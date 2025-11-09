@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { getBadgeProgress } from '@/lib/badges';
+import { getBadgeProgress, BADGES } from '@/lib/badges';
 
 export async function GET(request: Request) {
   try {
@@ -68,20 +68,48 @@ export async function GET(request: Request) {
         currentBadges = profile.badges as string[];
       } else if (typeof profile.badges === 'string') {
         try {
-          currentBadges = JSON.parse(profile.badges);
+          const parsed = JSON.parse(profile.badges);
+          currentBadges = Array.isArray(parsed) ? parsed : [];
         } catch {
           currentBadges = [];
         }
       } else {
-        // Handle JSONB object
-        currentBadges = profile.badges as string[];
+        // Handle JSONB object - try to extract array
+        try {
+          const jsonbValue = profile.badges as any;
+          if (Array.isArray(jsonbValue)) {
+            currentBadges = jsonbValue;
+          } else if (typeof jsonbValue === 'object' && jsonbValue !== null) {
+            // Try to extract array from JSONB object
+            currentBadges = [];
+          }
+        } catch {
+          currentBadges = [];
+        }
       }
     }
 
-    // Ensure currentBadges is an array
+    // Ensure currentBadges is an array and filter out invalid values
     if (!Array.isArray(currentBadges)) {
       currentBadges = [];
     }
+
+    // Filter to only valid badge IDs and remove duplicates
+    const validBadgeIds = new Set(BADGES.map(b => b.id));
+    const beforeFilter = currentBadges.length;
+    currentBadges = Array.from(new Set(
+      currentBadges.filter((badgeId: any) => 
+        typeof badgeId === 'string' && validBadgeIds.has(badgeId)
+      )
+    ));
+    
+    // Log for debugging if badges were filtered
+    if (beforeFilter !== currentBadges.length) {
+      console.log(`[Profile Summary] Filtered badges: ${beforeFilter} -> ${currentBadges.length} (removed invalid/duplicate badges)`);
+    }
+    
+    // Log actual badge count for debugging
+    console.log(`[Profile Summary] User ${userId} has ${currentBadges.length} valid badges:`, currentBadges);
 
     // Compute badge progress for next badge calculation
     const badgeProgress = getBadgeProgress(

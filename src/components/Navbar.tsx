@@ -70,16 +70,14 @@ export function Navbar() {
               <span>
                 Streak: <span className="font-semibold text-[#1b2a49]">{profile.streak}</span>
               </span>
-              {profile.badges && profile.badges.length > 0 && (
+              {profile.badges && Array.isArray(profile.badges) && profile.badges.length > 0 && (
                 <>
                   <span className="text-[#1b2a49]/50">|</span>
                   <span className="relative" title={`${profile.badges.length} badge${profile.badges.length > 1 ? 's' : ''} earned`}>
                     <span className="text-lg">🏆</span>
-                    {profile.badges.length > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-[#1b2a49]">
-                        {profile.badges.length}
-                      </span>
-                    )}
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-[#1b2a49]">
+                      {profile.badges.length}
+                    </span>
                   </span>
                 </>
               )}
