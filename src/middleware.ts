@@ -46,11 +46,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from /auth and landing page
+  // But allow /auth/callback to process magic links
   if (
     (request.nextUrl.pathname === '/auth' || request.nextUrl.pathname === '/') &&
-    user
+    user &&
+    !request.nextUrl.pathname.startsWith('/auth/callback')
   ) {
-    return NextResponse.redirect(new URL('/about', request.url));
+    return NextResponse.redirect(new URL('/play', request.url));
   }
 
   return response;
