@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -289,7 +289,7 @@ export default function AdminGeneratorPage() {
 
             <div className="flex flex-col sm:flex-row gap-2">
               <Button
-                onClick={handleGenerate}
+                onClick={() => handleGenerate()}
                 disabled={generating || count < 1 || count > 20}
                 className="flex-1"
               >

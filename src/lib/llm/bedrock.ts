@@ -172,7 +172,7 @@ Return as a JSON array only. No prose.`;
   
   if (!validationResult.success) {
     throw new Error(
-      `Invalid email schema from Bedrock: ${validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`
+      `Invalid email schema from Bedrock: ${validationResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')}`
     );
   }
 
