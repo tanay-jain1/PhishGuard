@@ -4,9 +4,9 @@ A web game that teaches users to spot phishing emails and protect themselves onl
 
 ## 🌐 Live Application
 
-**Production URL:** https://phish-guard-smoky.vercel.app/
+**🌍 Production URL:** [https://phish-guard-smoky.vercel.app/](https://phish-guard-smoky.vercel.app/)
 
-**About Page:** https://phish-guard-smoky.vercel.app/about
+**📖 About Page:** [https://phish-guard-smoky.vercel.app/about](https://phish-guard-smoky.vercel.app/about)
 
 ## Features
 
@@ -55,9 +55,10 @@ A web game that teaches users to spot phishing emails and protect themselves onl
      ```
 
 4. **Set up database**
-   - Follow the instructions in `TABLE-SETUP.md` to create tables
-   - Run `complete-setup.sql` in Supabase SQL Editor
-   - Run `emails-table-setup.sql` for the emails table
+   - Follow the instructions in `TABLE-SETUP.md` to create tables via Supabase Table Editor
+   - Run `supabase-setup.sql` in Supabase SQL Editor to create tables and RLS policies
+   - Run `migration-apply-guess.sql` to create the `apply_guess` function
+   - Run `add-badges-column.sql` to ensure badges column exists
    - Seed emails: `npm run seed:emails` (requires `.env.seed` with service role key)
 
 5. **Run development server**
@@ -158,7 +159,7 @@ The project uses the following Supabase tables:
 - **leaderboard** - Aggregated leaderboard stats
 - **game_sessions** - Game session tracking (legacy)
 
-See `ARCHITECTURE.md` for detailed database schema and API contracts.
+For detailed database schema and API contracts, see `ARCHITECTURE.md`.
 
 ## Development
 
@@ -172,14 +173,38 @@ See `ARCHITECTURE.md` for detailed database schema and API contracts.
 
 ### Environment Variables
 
-**`.env.local`** (required):
+#### Required Variables
+
+**`.env.local`** (required for local development):
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-**`.env.seed`** (optional, for seeding):
+**Where to find:**
+- Supabase Dashboard → Settings → API
+- `NEXT_PUBLIC_SUPABASE_URL`: Project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: anon/public key
+
+#### Optional Variables
+
+**`.env.local`** (for ML features):
 ```env
+USE_BEDROCK=1
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+```
+
+**`.env.seed`** (for email seeding):
+```env
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+**`.env.local`** (for admin features):
+```env
+ADMIN_EMAILS=admin@example.com,another-admin@example.com
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
@@ -187,14 +212,102 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 ### Vercel (Recommended)
 
-1. Push your code to GitHub
-2. Import repository in [Vercel](https://vercel.com)
-3. Add environment variables:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Deploy!
+#### Option A: Vercel Dashboard (Easiest)
 
-The app will automatically build and deploy on every push to main.
+1. **Push code to GitHub**
+   ```bash
+   git add -A
+   git commit -m "Ready for deployment"
+   git push origin main
+   ```
+
+2. **Import to Vercel**
+   - Go to [vercel.com](https://vercel.com) and sign in with GitHub
+   - Click "Add New Project"
+   - Select your `phishguard` repository
+   - Click "Import"
+
+3. **Configure Project**
+   - Framework Preset: **Next.js** (auto-detected)
+   - Root Directory: `./` (default)
+   - Build Command: `npm run build` (default)
+   - All other settings can remain default
+
+4. **Add Environment Variables**
+   - Click "Environment Variables" before deploying
+   - Add each variable for **Production**, **Preview**, and **Development**:
+
+   **Required:**
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+   **Optional (ML Features):**
+   ```
+   USE_BEDROCK=1
+   AWS_REGION=us-east-1
+   BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
+   AWS_ACCESS_KEY_ID=your_aws_access_key
+   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+   ```
+
+   **Optional (Admin/Seeding):**
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   ADMIN_EMAILS=admin@example.com
+   ```
+
+5. **Deploy**
+   - Click "Deploy"
+   - Wait 2-5 minutes for build
+   - Your app will be live at `phishguard.vercel.app` (or your custom domain)
+
+#### Option B: Vercel CLI
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Login
+vercel login
+
+# Deploy (from project root)
+vercel
+
+# Follow prompts, then add environment variables:
+vercel env add NEXT_PUBLIC_SUPABASE_URL
+vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
+# ... (add each variable)
+
+# Deploy to production
+vercel --prod
+```
+
+### Post-Deployment Checklist
+
+- [ ] Production build succeeds
+- [ ] Production URL works
+- [ ] Authentication works (sign up/login)
+- [ ] Game flow works end-to-end
+- [ ] ML assist appears (if enabled)
+- [ ] Leaderboard updates correctly
+- [ ] Profile shows stats
+- [ ] Mobile responsive
+- [ ] No console errors
+
+### Supabase Redirect URL Configuration
+
+After deployment, configure Supabase to allow your Vercel URL:
+
+1. Go to Supabase Dashboard → Authentication → URL Configuration
+2. Add your Vercel URL to "Redirect URLs":
+   ```
+   https://phish-guard-smoky.vercel.app
+   https://phish-guard-smoky.vercel.app/auth/callback
+   ```
+
+The app will automatically build and deploy on every push to `main`.
 
 ## Troubleshooting
 
@@ -205,7 +318,8 @@ The app will automatically build and deploy on every push to main.
 
 **Database permission errors:**
 - Use Supabase Table Editor to create tables (see `TABLE-SETUP.md`)
-- Then run SQL scripts for RLS policies and triggers
+- Run `supabase-setup.sql` for RLS policies and triggers
+- Ensure `apply_guess` function exists (from `migration-apply-guess.sql`)
 
 **Emails not showing:**
 - Ensure emails table is created and seeded
