@@ -2,6 +2,12 @@
 
 A web game that teaches users to spot phishing emails and protect themselves online. Players analyze emails and guess whether they're legitimate or phishing attempts, earning points and building streaks while learning about cybersecurity.
 
+## 🌐 Live Application
+
+**Production URL:** https://phish-guard-smoky.vercel.app/
+
+**About Page:** https://phish-guard-smoky.vercel.app/about
+
 ## Features
 
 - 🎮 **Interactive Gameplay** - Analyze real-world email examples and test your phishing detection skills
