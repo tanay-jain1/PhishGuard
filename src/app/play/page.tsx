@@ -55,11 +55,16 @@ export default function PlayPage() {
     setLoading(true);
     setError(null);
     try {
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch('/api/emails/next', {
         headers: {
           Authorization: `Bearer ${userId}`,
         },
-      });
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
 
       if (!response.ok) {
         const errorData = await response.json().catch(async () => {
@@ -77,11 +82,11 @@ export default function PlayPage() {
             ? errorData.error 
             : 'Failed to load emails';
           setError(errorMessage);
-          alert(`Error: ${errorMessage}`);
+          console.error('Email fetch error:', errorMessage);
         } else {
           const errorMessage = `Failed to load emails (${response.status}: ${response.statusText})`;
           setError(errorMessage);
-          alert(errorMessage);
+          console.error('Email fetch error:', errorMessage);
         }
         setLoading(false);
         return;
@@ -94,6 +99,7 @@ export default function PlayPage() {
       if (data.done === true) {
         // Try to auto-generate emails when pool is empty
         try {
+          console.log('Email pool empty, attempting auto-generation...');
           const generateResponse = await fetch('/api/emails/auto-generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -101,34 +107,44 @@ export default function PlayPage() {
           });
           
           if (generateResponse.ok) {
+            const genData = await generateResponse.json();
+            console.log('Auto-generation result:', genData);
             // Retry fetching email after generation
             setTimeout(() => {
               fetchNextEmail(userId);
-            }, 500);
+            }, 1000); // Wait 1 second for DB to update
             return;
+          } else {
+            const genError = await generateResponse.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Auto-generation failed:', genError);
           }
         } catch (genError) {
-          console.error('Auto-generation failed:', genError);
+          console.error('Auto-generation exception:', genError);
         }
         
-        setError('No more emails available. All emails have been completed!');
-        // Don't auto-redirect, let user see the message
+        setError('No more emails available. Please try again later or contact support.');
         setLoading(false);
         return;
       }
 
       // If we got an email, set it
-      if (data.id) {
+      if (data.id && data.subject) {
         setEmail(data);
         setError(null);
+        setLoading(false);
       } else {
         console.error('No email data received:', data);
-        setError('No email data received from server');
+        setError('No email data received from server. Please try again.');
+        setLoading(false);
       }
     } catch (error) {
-      console.error('Failed to fetch email:', error);
-      setError('Failed to fetch email. Please check if emails are seeded in the database.');
-    } finally {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('Email fetch timeout');
+        setError('Request timed out. Please check your connection and try again.');
+      } else {
+        console.error('Failed to fetch email:', error);
+        setError('Failed to fetch email. Please check if emails are seeded in the database.');
+      }
       setLoading(false);
     }
   }, []);

@@ -154,14 +154,29 @@ export async function GET(request: Request) {
     // Auto-generate emails if pool is empty or very low
     let finalEmails = allEmails;
     if (!allEmails || allEmails.length === 0) {
-      // Try to auto-generate emails
+      // Try to auto-generate emails (non-blocking, with timeout)
       try {
         console.log('📧 Email pool is empty, auto-generating 20 emails...');
-        await autoGenerateEmails(20); // Generate 20 emails
+        // Run auto-generation with a timeout to prevent hanging
+        const generationPromise = autoGenerateEmails(20);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auto-generation timeout')), 25000)
+        );
+        
+        await Promise.race([generationPromise, timeoutPromise]);
+        
         // Refetch emails after generation
-        const { data: newEmails } = await supabase
+        const { data: newEmails, error: refetchError } = await supabase
           .from('emails')
           .select('id, subject, from_name, from_email, body_html, is_phish, features, explanation, difficulty');
+        
+        if (refetchError) {
+          console.error('Failed to refetch emails after generation:', refetchError);
+          return NextResponse.json(
+            { error: 'Failed to fetch emails after generation', details: refetchError.message },
+            { status: 500 }
+          );
+        }
         
         if (newEmails && newEmails.length > 0) {
           console.log(`✅ Auto-generated ${newEmails.length} emails, continuing...`);
@@ -173,7 +188,12 @@ export async function GET(request: Request) {
       } catch (error) {
         // If auto-generation fails, return done (user can still play if emails exist)
         console.error('❌ Auto-generation failed:', error);
-        return NextResponse.json({ done: true });
+        // Still try to return emails if any exist
+        if (allEmails && allEmails.length > 0) {
+          finalEmails = allEmails;
+        } else {
+          return NextResponse.json({ done: true });
+        }
       }
     }
 
@@ -195,7 +215,7 @@ export async function GET(request: Request) {
     );
 
     // Filter out emails the user has already seen
-    let unseenEmails = (finalEmails || []).filter(
+    const unseenEmails = (finalEmails || []).filter(
       (email) => !guessedEmailIds.has(email.id)
     );
 
@@ -208,28 +228,13 @@ export async function GET(request: Request) {
     }
 
     if (unseenEmails.length === 0) {
-      // Wait a moment for generation, then retry
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const { data: updatedEmails } = await supabase
-          .from('emails')
-          .select('id, subject, from_name, from_email, body_html, is_phish, features, explanation, difficulty');
-        
-        if (updatedEmails && updatedEmails.length > 0) {
-          const newUnseen = updatedEmails.filter(
-            (email) => !guessedEmailIds.has(email.id)
-          );
-          if (newUnseen.length > 0) {
-            unseenEmails = newUnseen;
-          } else {
-            return NextResponse.json({ done: true });
-          }
-        } else {
-          return NextResponse.json({ done: true });
-        }
-      } catch {
-        return NextResponse.json({ done: true });
-      }
+      // Try to auto-generate more emails in background
+      autoGenerateEmails(20).catch(err => {
+        console.error('Background email generation failed:', err);
+      });
+      
+      // Return done immediately - don't wait for generation
+      return NextResponse.json({ done: true });
     }
 
     // Difficulty weighting: prefer easy emails first, then medium, then hard
