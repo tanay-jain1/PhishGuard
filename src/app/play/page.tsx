@@ -98,6 +98,7 @@ export default function PlayPage() {
       // Only redirect to leaderboard if explicitly done
       if (data.done === true) {
         // Show error message - user can click button to generate emails
+        console.log('📭 No more emails available (done: true)');
         setError('No more emails available. All emails have been completed!');
         setLoading(false);
         return;
