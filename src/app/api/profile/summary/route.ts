@@ -61,14 +61,29 @@ export async function GET(request: Request) {
 
     const stats = statsData?.[0] || {};
 
-    // Get current badges
-    const currentBadges = Array.isArray(profile.badges)
-      ? (profile.badges as string[])
-      : profile.badges
-      ? (typeof profile.badges === 'string' ? JSON.parse(profile.badges) : profile.badges)
-      : [];
+    // Get current badges from database (stored badges)
+    let currentBadges: string[] = [];
+    if (profile.badges) {
+      if (Array.isArray(profile.badges)) {
+        currentBadges = profile.badges as string[];
+      } else if (typeof profile.badges === 'string') {
+        try {
+          currentBadges = JSON.parse(profile.badges);
+        } catch {
+          currentBadges = [];
+        }
+      } else {
+        // Handle JSONB object
+        currentBadges = profile.badges as string[];
+      }
+    }
 
-    // Compute badge progress
+    // Ensure currentBadges is an array
+    if (!Array.isArray(currentBadges)) {
+      currentBadges = [];
+    }
+
+    // Compute badge progress for next badge calculation
     const badgeProgress = getBadgeProgress(
       {
         points: profile.points || 0,
@@ -86,12 +101,13 @@ export async function GET(request: Request) {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 
+    // Return the actual badges stored in the database, not computed ones
     return NextResponse.json({
       points: profile.points || 0,
       streak: profile.streak || 0,
       accuracy: profile.accuracy || 0,
       totalGuesses: totalGuesses || 0,
-      badges: badgeProgress.earnedIds,
+      badges: currentBadges, // Return stored badges, not computed
       nextBadge: badgeProgress.nextBadge || null,
       perLevel: {
         easyCorrect: stats.easy_correct || 0,
