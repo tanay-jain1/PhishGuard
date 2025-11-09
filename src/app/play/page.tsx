@@ -97,32 +97,8 @@ export default function PlayPage() {
 
       // Only redirect to leaderboard if explicitly done
       if (data.done === true) {
-        // Try to auto-generate emails when pool is empty
-        try {
-          console.log('Email pool empty, attempting auto-generation...');
-          const generateResponse = await fetch('/api/emails/auto-generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ count: 20 }),
-          });
-          
-          if (generateResponse.ok) {
-            const genData = await generateResponse.json();
-            console.log('Auto-generation result:', genData);
-            // Retry fetching email after generation
-            setTimeout(() => {
-              fetchNextEmail(userId);
-            }, 1000); // Wait 1 second for DB to update
-            return;
-          } else {
-            const genError = await generateResponse.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('Auto-generation failed:', genError);
-          }
-        } catch (genError) {
-          console.error('Auto-generation exception:', genError);
-        }
-        
-        setError('No more emails available. Please try again later or contact support.');
+        // Show error message - user can click button to generate emails
+        setError('No more emails available. All emails have been completed!');
         setLoading(false);
         return;
       }
@@ -395,7 +371,14 @@ export default function PlayPage() {
                 setLoading(true);
                 setError(null);
                 try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) {
+                    router.push('/auth');
+                    return;
+                  }
+
                   // Try to generate emails first
+                  console.log('Attempting to generate emails...');
                   const genResponse = await fetch('/api/emails/auto-generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -404,22 +387,30 @@ export default function PlayPage() {
                   
                   if (genResponse.ok) {
                     const genData = await genResponse.json();
-                    setError(`Generated ${genData.inserted || 0} new emails! Loading...`);
-                    // Wait a moment then fetch email
-                    setTimeout(async () => {
-                      const { data: { user } } = await supabase.auth.getUser();
-                      if (user) await fetchNextEmail(user.id);
-                    }, 1000);
+                    console.log('Email generation result:', genData);
+                    
+                    if (genData.inserted > 0) {
+                      // Wait a moment for DB to update, then fetch email
+                      setTimeout(async () => {
+                        await fetchNextEmail(user.id);
+                      }, 1500);
+                    } else {
+                      setError(`No new emails generated (${genData.skipped || 0} were duplicates). Please try again.`);
+                      setLoading(false);
+                    }
                   } else {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (user) await fetchNextEmail(user.id);
+                    const genError = await genResponse.json().catch(() => ({ error: 'Unknown error' }));
+                    console.error('Email generation failed:', genError);
+                    setError(`Failed to generate emails: ${genError.error || genError.details || 'Unknown error'}`);
+                    setLoading(false);
                   }
-                } catch {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) await fetchNextEmail(user.id);
+                } catch (err) {
+                  console.error('Error generating emails:', err);
+                  setError('Failed to generate emails. Please try again.');
+                  setLoading(false);
                 }
               }}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
               Generate Emails & Retry
             </button>
