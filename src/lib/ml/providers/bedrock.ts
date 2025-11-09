@@ -9,6 +9,8 @@ export class BedrockProvider implements MlProvider {
   constructor() {
     const region = process.env.AWS_REGION;
     const modelId = process.env.BEDROCK_MODEL_ID;
+    const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
     if (!region) {
       throw new Error('AWS_REGION environment variable is required');
@@ -17,13 +19,36 @@ export class BedrockProvider implements MlProvider {
       throw new Error('BEDROCK_MODEL_ID environment variable is required');
     }
 
-    this.modelId = modelId;
-    this.client = new BedrockRuntimeClient({
+    // Log configuration (without exposing secrets)
+    console.log('BedrockProvider initialization:', {
       region,
-      credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+      modelId,
+      hasAccessKeyId: !!accessKeyId,
+      hasSecretAccessKey: !!secretAccessKey,
+      accessKeyIdLength: accessKeyId?.length || 0,
+      secretAccessKeyLength: secretAccessKey?.length || 0,
+      accessKeyIdPrefix: accessKeyId ? accessKeyId.substring(0, 4) + '...' : 'missing',
+    });
+
+    // Check for common issues with secret key
+    if (secretAccessKey) {
+      // Check for leading/trailing whitespace
+      if (secretAccessKey !== secretAccessKey.trim()) {
+        console.warn('⚠️ WARNING: AWS_SECRET_ACCESS_KEY has leading/trailing whitespace! This will cause authentication failures.');
+      }
+      // Check for reasonable length (AWS secret keys are typically 40 chars)
+      if (secretAccessKey.length < 30 || secretAccessKey.length > 50) {
+        console.warn(`⚠️ WARNING: AWS_SECRET_ACCESS_KEY length is ${secretAccessKey.length} chars (expected ~40). This might indicate a truncated or incorrect value.`);
+      }
+    }
+
+    this.modelId = modelId.trim(); // Remove any whitespace from model ID
+    this.client = new BedrockRuntimeClient({
+      region: region.trim(),
+      credentials: accessKeyId && secretAccessKey
         ? {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            accessKeyId: accessKeyId.trim(),
+            secretAccessKey: secretAccessKey.trim(), // Trim whitespace
           }
         : undefined,
     });
@@ -226,7 +251,27 @@ IMPORTANT:
         topTokens: topTokens.length > 0 ? topTokens : undefined,
       };
     } catch (error) {
-      console.error('Bedrock classification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Bedrock classification error:', errorMessage);
+      
+      // Provide helpful error messages for common issues
+      if (errorMessage.includes('signature') || errorMessage.includes('Secret Access Key')) {
+        console.error('🔴 AWS Authentication Error Details:');
+        console.error('   - This usually means AWS_SECRET_ACCESS_KEY is incorrect');
+        console.error('   - Check for: leading/trailing spaces, truncated value, wrong credentials');
+        console.error('   - Verify in Vercel: Settings → Environment Variables → Production');
+        console.error('   - Ensure credentials match the IAM user with Bedrock permissions');
+      } else if (errorMessage.includes('AccessDenied') || errorMessage.includes('UnauthorizedOperation')) {
+        console.error('🔴 AWS Permission Error:');
+        console.error('   - IAM user needs bedrock:InvokeModel permission');
+        console.error('   - Check: AWS Console → IAM → Users → Permissions');
+      } else if (errorMessage.includes('model') || errorMessage.includes('not found')) {
+        console.error('🔴 Model Access Error:');
+        console.error('   - Model may not be enabled in your AWS account');
+        console.error('   - Check: AWS Console → Bedrock → Model access');
+        console.error('   - Enable Claude 3 Haiku if not already enabled');
+      }
+      
       // Return undefined to indicate failure (not default 0.5)
       throw error; // Let the caller handle the error
     }

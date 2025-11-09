@@ -31,6 +31,9 @@ export async function GET() {
     provider: {
       type: 'unknown',
       error: null as string | null,
+      errorStack: undefined as string | undefined,
+      testResult: undefined as any,
+      testError: undefined as string | undefined,
     },
   };
 
@@ -46,14 +49,14 @@ export async function GET() {
         from_email: 'test@example.com',
         from_name: 'Test',
       });
-      (diagnostics.provider as any).testResult = {
+      diagnostics.provider.testResult = {
         prob_phish: testResult.prob_phish,
         hasReasons: !!testResult.reasons && testResult.reasons.length > 0,
         hasTokens: !!testResult.topTokens && testResult.topTokens.length > 0,
       };
     } catch (testError) {
-      diagnostics.provider.error = testError instanceof Error ? testError.message : 'Unknown error';
-      (diagnostics.provider as any).testError = testError instanceof Error ? testError.stack : undefined;
+      diagnostics.provider.testError = testError instanceof Error ? testError.message : 'Unknown error';
+      diagnostics.provider.errorStack = testError instanceof Error ? testError.stack : undefined;
     }
   } catch (error) {
     diagnostics.provider.error = error instanceof Error ? error.message : 'Unknown error';
