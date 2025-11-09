@@ -50,11 +50,13 @@ export async function POST(request: Request) {
     }
 
     // 4. Generate emails using bedrock (or mock)
+    console.log(`📧 Starting email generation for ${count} emails...`);
     let items: Awaited<ReturnType<typeof generateEmails>> = [];
     try {
       items = await generateEmails(count);
+      console.log(`✅ Email generation completed: ${items?.length || 0} emails generated`);
     } catch (error) {
-      console.error('Email generation failed:', error);
+      console.error('❌ Email generation failed:', error);
       return NextResponse.json(
         { 
           error: 'Email generation failed',
@@ -65,11 +67,14 @@ export async function POST(request: Request) {
     }
     
     if (!items || !Array.isArray(items) || items.length === 0) {
+      console.error('❌ No emails generated - items is empty or not an array');
       return NextResponse.json(
-        { error: 'No emails generated' },
+        { error: 'No emails generated', details: 'Generation returned empty result' },
         { status: 500 }
       );
     }
+    
+    console.log(`📝 Processing ${items.length} generated emails...`);
 
     // 5. Validate and normalize
     const validatedEmails: Array<ReturnType<typeof normalizeAndScore>> = [];
@@ -88,11 +93,14 @@ export async function POST(request: Request) {
     }
 
     if (validatedEmails.length === 0) {
+      console.error('❌ No valid emails after validation. Errors:', validationErrors);
       return NextResponse.json(
         { error: 'No valid emails after validation', details: validationErrors },
         { status: 500 }
       );
     }
+    
+    console.log(`✅ ${validatedEmails.length} emails passed validation`);
 
     // 6. Create service client
     const serviceSupabase = createServiceClient(supabaseUrl, serviceRoleKey, {
@@ -174,6 +182,8 @@ export async function POST(request: Request) {
 
     const inserted = insertedData?.length || 0;
     const skipped = validatedEmails.length - newEmails.length;
+
+    console.log(`✅ Email insertion complete: ${inserted} inserted, ${skipped} skipped`);
 
     return NextResponse.json({
       inserted,

@@ -359,12 +359,14 @@ export default function PlayPage() {
 
   if (error && !email) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-            Click the button below to automatically generate new emails for the game.
-          </p>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="text-center max-w-md w-full">
+          <p className="text-red-600 dark:text-red-400 mb-4 font-medium text-lg">{error}</p>
+          {error.includes('No more emails') && (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              Click the button below to automatically generate new emails for the game.
+            </p>
+          )}
           <div className="flex flex-col gap-2 justify-center items-center">
             <button
               onClick={async () => {
@@ -378,41 +380,56 @@ export default function PlayPage() {
                   }
 
                   // Try to generate emails first
-                  console.log('Attempting to generate emails...');
+                  console.log('🔄 Attempting to generate emails...');
+                  setError('Generating emails... Please wait.');
+                  
                   const genResponse = await fetch('/api/emails/auto-generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ count: 20 }),
                   });
                   
+                  console.log('📧 Generation response status:', genResponse.status, genResponse.ok);
+                  
                   if (genResponse.ok) {
                     const genData = await genResponse.json();
-                    console.log('Email generation result:', genData);
+                    console.log('✅ Email generation result:', genData);
                     
                     if (genData.inserted > 0) {
+                      setError(`✅ Generated ${genData.inserted} new emails! Loading...`);
                       // Wait a moment for DB to update, then fetch email
                       setTimeout(async () => {
+                        console.log('🔄 Fetching next email after generation...');
                         await fetchNextEmail(user.id);
-                      }, 1500);
+                      }, 2000);
                     } else {
-                      setError(`No new emails generated (${genData.skipped || 0} were duplicates). Please try again.`);
+                      const message = genData.skipped > 0 
+                        ? `No new emails generated (${genData.skipped} were duplicates). Trying again...`
+                        : 'No emails were generated. Please try again.';
+                      setError(message);
                       setLoading(false);
                     }
                   } else {
-                    const genError = await genResponse.json().catch(() => ({ error: 'Unknown error' }));
-                    console.error('Email generation failed:', genError);
-                    setError(`Failed to generate emails: ${genError.error || genError.details || 'Unknown error'}`);
+                    const genError = await genResponse.json().catch(async () => {
+                      const text = await genResponse.text().catch(() => '');
+                      console.error('Failed to parse error response:', text);
+                      return { error: `HTTP ${genResponse.status}: ${genResponse.statusText}` };
+                    });
+                    console.error('❌ Email generation failed:', genError);
+                    const errorMsg = genError.error || genError.details || 'Unknown error';
+                    setError(`Failed to generate emails: ${errorMsg}. Please check server logs.`);
                     setLoading(false);
                   }
                 } catch (err) {
-                  console.error('Error generating emails:', err);
-                  setError('Failed to generate emails. Please try again.');
+                  console.error('❌ Exception generating emails:', err);
+                  setError(`Failed to generate emails: ${err instanceof Error ? err.message : 'Network error'}. Please try again.`);
                   setLoading(false);
                 }
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading}
             >
-              Generate Emails & Retry
+              {loading ? 'Generating...' : 'Generate Emails & Retry'}
             </button>
             <button
               onClick={() => router.push('/leaderboard')}
