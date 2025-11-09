@@ -42,6 +42,7 @@ export default function PlayPage() {
   const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
   const [mlData, setMlData] = useState<MlData | null>(null);
   const [profile, setProfile] = useState<{ points: number; streak: number } | null>(null);
+  const [consecutiveWrongs, setConsecutiveWrongs] = useState(0);
   const router = useRouter();
   const supabase = createClient();
 
@@ -131,6 +132,13 @@ export default function PlayPage() {
       setProfile(data.profileSnapshot);
       setShowVerdict(true);
 
+      // Track consecutive wrong answers
+      if (!data.correct) {
+        setConsecutiveWrongs((prev) => prev + 1);
+      } else {
+        setConsecutiveWrongs(0);
+      }
+
       // Fetch ML classification if available
       if (email) {
         try {
@@ -185,6 +193,13 @@ export default function PlayPage() {
 
     await fetchNextEmail(user.id);
   };
+
+  const handleQuizComplete = () => {
+    // Reset consecutive wrongs counter after quiz completion
+    setConsecutiveWrongs(0);
+  };
+
+  const showRecapQuiz = consecutiveWrongs >= 3 && verdictData && !verdictData.correct;
 
   if (loading) {
     return (
@@ -278,8 +293,10 @@ export default function PlayPage() {
           mlProbPhish={mlData?.prob_phish}
           mlReasons={mlData?.reasons}
           mlTokens={mlData?.topTokens}
+          showRecapQuiz={showRecapQuiz}
           onClose={() => setShowVerdict(false)}
           onNext={handleNext}
+          onQuizComplete={handleQuizComplete}
         />
       )}
     </div>

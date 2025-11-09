@@ -25,29 +25,29 @@ export default function ResourcesPage() {
 
   const resources = [
     {
-      name: 'CISA - Phishing Campaigns',
-      url: 'https://www.cisa.gov/news-events/news/phishing-campaigns',
-      description: 'Cybersecurity and Infrastructure Security Agency resources on phishing',
+      name: 'IT Governance – 5 Ways to Detect a Phishing Email',
+      url: 'https://www.itgovernance.co.uk/blog/5-ways-to-detect-a-phishing-email',
+      description: 'Five simple, actionable strategies to identify phishing emails, including spotting fake links, urgent wording, and suspicious attachments.',
     },
     {
-      name: 'FTC - Phishing',
-      url: 'https://www.ftc.gov/news-events/topics/identity-theft/phishing',
-      description: 'Federal Trade Commission guide to recognizing and avoiding phishing',
+      name: 'FTC – How to Recognize and Avoid Phishing Scams',
+      url: 'https://consumer.ftc.gov/articles/how-recognize-avoid-phishing-scams',
+      description: 'Federal Trade Commission\'s official guide on recognizing, avoiding, and reporting phishing attempts.',
     },
     {
-      name: 'OWASP - Phishing',
-      url: 'https://owasp.org/www-community/attacks/Phishing',
-      description: 'Open Web Application Security Project phishing attack information',
+      name: 'NCSC (UK) – Dealing with Suspicious Emails, Phone Calls and Texts',
+      url: 'https://www.ncsc.gov.uk/guidance/suspicious-email-actions',
+      description: 'How to spot suspicious messages and what to do with them, from the UK\'s National Cyber Security Centre.',
     },
     {
       name: 'UMass IT Security',
-      url: 'https://www.umass.edu/it/security',
-      description: 'UMass IT Security resources and best practices',
+      url: 'https://www.umass.edu/it/security/phishing',
+      description: 'UMass IT\'s dedicated page on identifying phishing scams, with campus-specific examples and prevention tips.',
     },
     {
-      name: 'FBI - Phishing Scams',
-      url: 'https://www.fbi.gov/scams-and-safety/common-scams-and-crimes/phishing',
-      description: 'FBI information on phishing scams and how to report them',
+      name: 'FBI – Spoofing and Phishing Scams',
+      url: 'https://www.fbi.gov/how-we-can-help-you/scams-and-safety/common-frauds-and-scams/spoofing-and-phishing',
+      description: 'Information from the FBI about phishing and spoofing scams, along with steps to report incidents through the Internet Crime Complaint Center (IC3).',
     },
   ];
 
