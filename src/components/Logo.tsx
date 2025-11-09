@@ -11,7 +11,7 @@ export function Logo() {
 
   return (
     <div className="fixed top-2 left-2 z-50">
-      <Link href="/">
+      <Link href="/about">
         <Image
           src="/logo.png"
           alt="PhishGuard Logo"

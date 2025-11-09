@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest) {
     user &&
     !request.nextUrl.pathname.startsWith('/auth/callback')
   ) {
-    return NextResponse.redirect(new URL('/play', request.url));
+    return NextResponse.redirect(new URL('/about', request.url));
   }
 
   return response;
