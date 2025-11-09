@@ -97,8 +97,10 @@ export default function AdminGeneratorPage() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (count < 1 || count > 20) {
+  const handleGenerate = async (overrideCount?: number) => {
+    const actualCount = overrideCount ?? count;
+    
+    if (actualCount < 1 || actualCount > 20) {
       setError('Count must be between 1 and 20');
       return;
     }
@@ -106,12 +108,15 @@ export default function AdminGeneratorPage() {
     setGenerating(true);
     setError(null);
     setResult(null);
+    if (overrideCount) {
+      setCount(overrideCount);
+    }
 
     try {
       const response = await fetch('/api/admin/generate-emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count }),
+        body: JSON.stringify({ count: actualCount }),
       });
 
       const data = await response.json();
@@ -258,7 +263,18 @@ export default function AdminGeneratorPage() {
 
             {error && (
               <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                {error}
+                <div className="font-semibold">{error}</div>
+                {error.includes('service role key') && (
+                  <div className="mt-2 text-xs">
+                    <p className="font-medium">Quick Fix:</p>
+                    <ol className="list-decimal list-inside mt-1 space-y-1">
+                      <li>Go to Supabase Dashboard → Settings → API</li>
+                      <li>Copy the <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">service_role</code> key</li>
+                      <li>Add to <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">.env.local</code>: <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY=your_key_here</code></li>
+                      <li>Restart your dev server</li>
+                    </ol>
+                  </div>
+                )}
               </div>
             )}
 
@@ -271,13 +287,54 @@ export default function AdminGeneratorPage() {
               </div>
             )}
 
-            <Button
-              onClick={handleGenerate}
-              disabled={generating || count < 1 || count > 20}
-              className="w-full sm:w-auto"
-            >
-              {generating ? 'Generating...' : 'Generate Emails'}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={handleGenerate}
+                disabled={generating || count < 1 || count > 20}
+                className="flex-1"
+              >
+                {generating ? 'Generating...' : 'Generate Emails'}
+              </Button>
+              
+              {/* Quick action buttons for common counts */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleGenerate(10)}
+                  disabled={generating}
+                  variant="outline"
+                  size="sm"
+                >
+                  Quick: 10
+                </Button>
+                <Button
+                  onClick={() => handleGenerate(20)}
+                  disabled={generating}
+                  variant="outline"
+                  size="sm"
+                >
+                  Quick: 20
+                </Button>
+              </div>
+            </div>
+            
+            {/* Auto-generate when pool is low */}
+            {stats && stats.total < 10 && (
+              <div className="rounded-md bg-yellow-50 p-3 text-sm text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200">
+                <div className="font-semibold">⚠️ Low Email Pool</div>
+                <div className="mt-1">
+                  Only {stats.total} emails available. Consider generating more for better gameplay experience.
+                </div>
+                <Button
+                  onClick={() => handleGenerate(20)}
+                  disabled={generating}
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                >
+                  Generate 20 Now
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

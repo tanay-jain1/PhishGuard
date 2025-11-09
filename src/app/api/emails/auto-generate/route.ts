@@ -1,11 +1,11 @@
 /**
- * Admin-only email generation endpoint
+ * Public auto-generation endpoint
  * 
- * POST /api/admin/generate-emails
+ * POST /api/emails/auto-generate
  * 
- * Body: { count?: number } (default: 10, clamped to 1-20)
- * 
- * Generates emails using Bedrock, validates, normalizes, deduplicates, and upserts to database.
+ * Automatically generates emails when pool is low/empty.
+ * This endpoint is public (any authenticated user can trigger it).
+ * No admin access required - designed for seamless gameplay.
  */
 
 import { createClient } from '@/lib/supabase/server';
@@ -14,48 +14,9 @@ import { NextResponse } from 'next/server';
 import { generateEmails } from '@/lib/llm/bedrock';
 import { GeneratedEmailSchema, normalizeAndScore } from '@/lib/generationSchema';
 
-/**
- * Hardcoded admin user IDs (fallback if env var not set)
- */
-const HARDCODED_ADMIN_IDS: string[] = [
-  // Add hardcoded user IDs here if needed
-];
-
-/**
- * Check if user is admin
- */
-function isAdminUser(userId: string | null, userEmail: string | null): boolean {
-  if (!userId && !userEmail) {
-    return false;
-  }
-
-  // Check hardcoded user IDs
-  if (userId && HARDCODED_ADMIN_IDS.includes(userId)) {
-    return true;
-  }
-
-  // Check ADMIN_EMAILS env var
-  const adminEmails = process.env.ADMIN_EMAILS || '';
-  if (!adminEmails.trim()) {
-    return false;
-  }
-
-  const allowedEmails = adminEmails
-    .split(',')
-    .map(email => email.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (allowedEmails.length === 0) {
-    return false;
-  }
-
-  const userEmailLower = userEmail?.toLowerCase() || '';
-  return allowedEmails.includes(userEmailLower);
-}
-
 export async function POST(request: Request) {
   try {
-    // 1. Authenticate user
+    // 1. Authenticate user (any authenticated user can trigger this)
     const supabase = await createClient();
     const {
       data: { user: authUser },
@@ -69,32 +30,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Check admin access
-    if (!isAdminUser(authUser.id, authUser.email || null)) {
+    // 2. Parse request body
+    const body = await request.json().catch(() => ({}));
+    const requestedCount = typeof body.count === 'number' ? body.count : 20;
+    const count = Math.min(Math.max(1, Math.floor(requestedCount)), 20);
+
+    // 3. Check if service role key is available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
-        { error: 'Forbidden - admin access required' },
-        { status: 403 }
+        { 
+          error: 'Server configuration error - service role key not configured',
+          hint: 'Add SUPABASE_SERVICE_ROLE_KEY to .env.local'
+        },
+        { status: 500 }
       );
     }
 
-    // 3. Parse request body
-    const body = await request.json().catch(() => ({}));
-    const requestedCount = typeof body.count === 'number' ? body.count : 10;
-    
-    // Handle count: 0 as a test/auth check (return early without generating)
-    if (requestedCount === 0) {
-      return NextResponse.json({
-        inserted: 0,
-        skipped: 0,
-        message: 'Auth check successful',
-      });
-    }
-    
-    const count = Math.min(Math.max(1, Math.floor(requestedCount)), 20);
-
-    // 4. Generate emails using bedrock
+    // 4. Generate emails using bedrock (or mock)
     const items = await generateEmails(count);
-
     if (items.length === 0) {
       return NextResponse.json(
         { error: 'No emails generated' },
@@ -102,21 +58,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Validate and normalize each email
+    // 5. Validate and normalize
     const validatedEmails: Array<ReturnType<typeof normalizeAndScore>> = [];
     const validationErrors: string[] = [];
 
     for (const item of items) {
       try {
-        // Validate with schema
         const validated = GeneratedEmailSchema.parse(item);
-        // Normalize and score
         const normalized = normalizeAndScore(validated);
         validatedEmails.push(normalized);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown validation error';
         validationErrors.push(errorMsg);
-        console.warn('Email validation failed:', errorMsg, item);
+        console.warn('Email validation failed:', errorMsg);
       }
     }
 
@@ -127,27 +81,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Create service role client for database operations
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl) {
-      return NextResponse.json(
-        { error: 'Server configuration error - NEXT_PUBLIC_SUPABASE_URL not configured' },
-        { status: 500 }
-      );
-    }
-
-    if (!serviceRoleKey) {
-      return NextResponse.json(
-        { 
-          error: 'Server configuration error - SUPABASE_SERVICE_ROLE_KEY not configured',
-          hint: 'Add SUPABASE_SERVICE_ROLE_KEY to your .env.local file. Get it from Supabase Dashboard > Settings > API > service_role key'
-        },
-        { status: 500 }
-      );
-    }
-
+    // 6. Create service client
     const serviceSupabase = createServiceClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -155,7 +89,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // 7. Deduplicate: Check existing emails by subject + from_email
+    // 7. Deduplicate
     const emailKeys = validatedEmails.map(e => ({
       from_email: e.from_email,
       subject: e.subject,
@@ -178,7 +112,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Filter out duplicates
     const newEmails = validatedEmails.filter(
       email => !existingSet.has(`${email.from_email}::${email.subject}`)
     );
@@ -187,10 +120,11 @@ export async function POST(request: Request) {
       return NextResponse.json({
         inserted: 0,
         skipped: validatedEmails.length,
+        message: 'All generated emails already exist',
       });
     }
 
-    // 8. Prepare emails for insert (convert difficulty from 1|2|3 to 'easy'|'medium'|'hard')
+    // 8. Insert emails
     const difficultyMap: Record<1 | 2 | 3, 'easy' | 'medium' | 'hard'> = {
       1: 'easy',
       2: 'medium',
@@ -209,7 +143,6 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }));
 
-    // 9. Insert emails
     const { data: insertedData, error: insertError } = await serviceSupabase
       .from('emails')
       .insert(emailsToInsert)
@@ -232,10 +165,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       inserted,
       skipped,
+      message: `Successfully generated ${inserted} new emails`,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Email generation API error:', error);
+    console.error('Auto-generation API error:', error);
     return NextResponse.json(
       {
         error: 'Internal server error',

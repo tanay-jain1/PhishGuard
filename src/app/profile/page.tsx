@@ -3,18 +3,11 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useProfileContext } from '@/providers/profile-provider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getUserBadges, BADGES } from '@/lib/badges';
-
-interface Profile {
-  points: number;
-  streak: number;
-  username: string | null;
-  email: string;
-  badges?: string[];
-}
 
 interface Stats {
   totalGuesses: number;
@@ -23,48 +16,34 @@ interface Stats {
 }
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameValue, setUsernameValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
+  const { profile, loading, refreshProfile, updateUsername } = useProfileContext();
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const checkAuth = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/');
+        router.push('/auth');
         return;
       }
 
-      try {
-        // Fetch profile
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('points, streak, username, email, badges')
-          .eq('id', user.id)
-          .single();
-
-        if (profileData) {
-          setProfile(profileData);
-          setUsernameValue(profileData.username || '');
-        }
-      } catch (error) {
-        console.error('Failed to fetch profile:', error);
-      } finally {
-        setLoading(false);
+      // Initialize username value from profile
+      if (profile) {
+        setUsernameValue(profile.username || '');
       }
     };
 
-    fetchProfile();
-  }, [router, supabase]);
+    checkAuth();
+  }, [router, supabase, profile]);
 
   const handleSaveUsername = async () => {
     if (!usernameValue.trim()) {
@@ -76,35 +55,17 @@ export default function ProfilePage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/profile/update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: usernameValue.trim(),
-        }),
-      });
+      // Call updateUsername from hook (this already calls refreshProfile internally)
+      const result = await updateUsername(usernameValue.trim());
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 409) {
-          setError('Username already taken');
-        } else {
-          setError(data.error || 'Failed to update username');
-        }
+      if (!result.success) {
+        setError(result.error || 'Failed to update username');
         setSaving(false);
         return;
       }
 
-      // Update local state
-      if (profile) {
-        setProfile({
-          ...profile,
-          username: data.profile.username,
-        });
-      }
+      // Explicitly refresh profile to ensure hook state is updated
+      await refreshProfile();
 
       setEditingUsername(false);
       setError(null);
@@ -201,25 +162,27 @@ export default function ProfilePage() {
                   {profile?.streak || 0}
                 </div>
               </div>
+              <div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Accuracy
+                </div>
+                <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                  {profile?.accuracy !== undefined
+                    ? `${(profile.accuracy * 100).toFixed(1)}%`
+                    : stats
+                    ? `${stats.accuracy.toFixed(1)}%`
+                    : '0.0%'}
+                </div>
+              </div>
               {stats && (
-                <>
-                  <div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      Accuracy
-                    </div>
-                    <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                      {stats.accuracy.toFixed(1)}%
-                    </div>
+                <div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Total Guesses
                   </div>
-                  <div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      Total Guesses
-                    </div>
-                    <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                      {stats.totalGuesses}
-                    </div>
+                  <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                    {stats.totalGuesses}
                   </div>
-                </>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -313,14 +276,6 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                 )}
-              </div>
-              <div>
-                <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Email
-                </div>
-                <div className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                  {profile?.email || 'N/A'}
-                </div>
               </div>
             </CardContent>
           </Card>

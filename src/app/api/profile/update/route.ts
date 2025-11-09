@@ -4,29 +4,40 @@ import { NextResponse } from 'next/server';
 /**
  * Update user profile (username, etc.)
  * POST /api/profile/update
+ * Auth: Bearer <userId> in Authorization header
  * Body: { username?: string }
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-
-    // Get authenticated user from session
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
+    // Read userId from Authorization Bearer header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - missing or invalid Authorization header' },
         { status: 401 }
       );
     }
 
-    const userId = authUser.id;
+    const userId = authHeader.replace('Bearer ', '').trim();
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized - invalid userId' },
+        { status: 401 }
+      );
+    }
+
+    const supabase = await createClient();
 
     // Parse request body
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
     const { username } = body;
 
     // Validate username if provided
@@ -70,7 +81,10 @@ export async function POST(request: Request) {
 
       if (existingProfile) {
         return NextResponse.json(
-          { error: 'Username already taken' },
+          { 
+            error: 'Username already taken',
+            message: 'This username is already in use. Please choose a different username.'
+          },
           { status: 409 }
         );
       }

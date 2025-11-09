@@ -7,14 +7,11 @@ import Link from 'next/link';
 
 interface LeaderboardEntry {
   userId: string;
-  username: string;
+  username: string | null;
   points: number;
-  badges: string[];
-  badgesCount: number;
+  streak: number;
   accuracy: number;
-  totalGuesses: number;
-  correctGuesses: number;
-  created_at: string;
+  created_at?: string;
 }
 
 export default function LeaderboardPage() {
@@ -38,14 +35,24 @@ export default function LeaderboardPage() {
       setCurrentUserId(user.id);
 
       try {
-        const response = await fetch('/api/leaderboard');
-        const data = await response.json();
+        // Fetch from server API route to ensure fresh data (no caching)
+        const response = await fetch('/api/leaderboard', {
+          cache: 'no-store',
+        });
 
-        if (data.entries) {
-          setEntries(data.entries);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Failed to fetch leaderboard:', errorData);
+          setEntries([]);
+          setLoading(false);
+          return;
         }
+
+        const { entries: leaderboardEntries } = await response.json();
+        setEntries(leaderboardEntries || []);
       } catch (error) {
         console.error('Failed to fetch leaderboard:', error);
+        setEntries([]);
       } finally {
         setLoading(false);
       }
@@ -53,6 +60,15 @@ export default function LeaderboardPage() {
 
     fetchData();
   }, [router, supabase]);
+
+  // Helper function to get display name (username or short id)
+  const getDisplayName = (username: string | null, userId: string): string => {
+    if (username && username.trim().length > 0) {
+      return username;
+    }
+    // Return first 8 characters of user ID
+    return userId.substring(0, 8);
+  };
 
   if (loading) {
     return (
@@ -96,7 +112,7 @@ export default function LeaderboardPage() {
                     Points
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
-                    Badges
+                    Streak
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-[#1b2a49]">
                     Accuracy
@@ -117,19 +133,16 @@ export default function LeaderboardPage() {
                       {index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm text-[#1b2a49]">
-                      {entry.username}
+                      {getDisplayName(entry.username, entry.userId)}
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-[#1b2a49]">
                       {entry.points}
                     </td>
                     <td className="px-6 py-4 text-right text-sm text-[#1b2a49]">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="text-lg">🏆</span>
-                        <span className="font-medium">{entry.badgesCount || 0}</span>
-                      </span>
+                      {entry.streak}
                     </td>
                     <td className="px-6 py-4 text-right text-sm text-[#1b2a49]/70">
-                      {entry.accuracy.toFixed(1)}%
+                      {(entry.accuracy * 100).toFixed(1)}%
                     </td>
                   </tr>
                 ))}

@@ -54,13 +54,30 @@ BEGIN
   END IF;
 END $$;
 
+-- Add accuracy column if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'accuracy'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN accuracy NUMERIC DEFAULT 0;
+    RAISE NOTICE 'Added accuracy column to profiles';
+  ELSE
+    RAISE NOTICE 'accuracy column already exists';
+  END IF;
+END $$;
+
 -- Update existing profiles to have default values
 UPDATE public.profiles 
 SET 
   points = COALESCE(points, 0),
   streak = COALESCE(streak, 0),
-  badges = COALESCE(badges, '[]'::jsonb)
-WHERE points IS NULL OR streak IS NULL OR badges IS NULL;
+  badges = COALESCE(badges, '[]'::jsonb),
+  accuracy = COALESCE(accuracy, 0)
+WHERE points IS NULL OR streak IS NULL OR badges IS NULL OR accuracy IS NULL;
 
 -- ============================================
 -- 2. CREATE guesses TABLE

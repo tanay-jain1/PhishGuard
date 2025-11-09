@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useProfile } from '@/lib/useProfile';
+import { useProfileContext } from '@/providers/profile-provider';
 import EmailViewer from '@/components/EmailViewer';
 import GuessButtons from '@/components/GuessButtons';
 import VerdictModal from '@/components/VerdictModal';
@@ -45,41 +45,11 @@ export default function PlayPage() {
   const [verdictData, setVerdictData] = useState<VerdictData | null>(null);
   const [mlData, setMlData] = useState<MlData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { refreshProfile } = useProfile();
+  const { refreshProfile } = useProfileContext();
   const router = useRouter();
   const supabase = createClient();
 
-  useEffect(() => {
-    const initGame = async () => {
-      // Get user - if no user, redirect to /auth
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
-
-      // Initialize profile if needed (call once)
-      try {
-        await fetch('/api/auth/init', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id }),
-        });
-      } catch (error) {
-        console.error('Failed to init profile:', error);
-      }
-
-      // Fetch first email
-      await fetchNextEmail(user.id);
-    };
-
-    initGame();
-  }, [router, supabase]);
-
-  const fetchNextEmail = async (userId: string) => {
+  const fetchNextEmail = useCallback(async (userId: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -90,9 +60,27 @@ export default function PlayPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to fetch email:', response.status, errorData);
-        setError(`Failed to load emails: ${errorData.error || response.statusText}`);
+        const errorData = await response.json().catch(async () => {
+          const text = await response.text().catch(() => '');
+          console.error('API error - non-JSON response', {
+            status: response.status,
+            statusText: response.statusText,
+            text: text.substring(0, 200),
+          });
+          return null;
+        });
+
+        if (errorData && errorData.error) {
+          const errorMessage = typeof errorData.error === 'string' 
+            ? errorData.error 
+            : 'Failed to load emails';
+          setError(errorMessage);
+          alert(`Error: ${errorMessage}`);
+        } else {
+          const errorMessage = `Failed to load emails (${response.status}: ${response.statusText})`;
+          setError(errorMessage);
+          alert(errorMessage);
+        }
         setLoading(false);
         return;
       }
@@ -102,6 +90,25 @@ export default function PlayPage() {
 
       // Only redirect to leaderboard if explicitly done
       if (data.done === true) {
+        // Try to auto-generate emails when pool is empty
+        try {
+          const generateResponse = await fetch('/api/emails/auto-generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 20 }),
+          });
+          
+          if (generateResponse.ok) {
+            // Retry fetching email after generation
+            setTimeout(() => {
+              fetchNextEmail(userId);
+            }, 500);
+            return;
+          }
+        } catch (genError) {
+          console.error('Auto-generation failed:', genError);
+        }
+        
         setError('No more emails available. All emails have been completed!');
         // Don't auto-redirect, let user see the message
         setLoading(false);
@@ -122,7 +129,29 @@ export default function PlayPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const initGame = async () => {
+      // Get user - if no user, redirect to /auth
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.push('/auth');
+        return;
+      }
+
+      // Profile initialization is handled by useProfile hook and /api/auth/init
+      // Don't call it here as it would reset points/streak
+      
+      // Fetch first email
+      await fetchNextEmail(user.id);
+    };
+
+    initGame();
+  }, [fetchNextEmail, router, supabase]);
 
   const handleGuess = async (guessIsPhish: boolean) => {
     if (!email || submitting) return;
@@ -152,17 +181,34 @@ export default function PlayPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API error:', errorData);
-        
+        const errorData = await response.json().catch(async () => {
+          const text = await response.text().catch(() => '');
+          console.error('API error - non-JSON response', {
+            status: response.status,
+            statusText: response.statusText,
+            text: text.substring(0, 200),
+          });
+          return null;
+        });
+
         // Handle already_guessed error
-        if (response.status === 409 && errorData.error === 'already_guessed') {
+        if (response.status === 409 && errorData?.error === 'already_guessed') {
           alert('You have already guessed this email. Fetching next email...');
           await fetchNextEmail(user.id);
           return;
         }
         
-        alert(`Error: ${errorData.error || 'Failed to submit guess'}`);
+        // Show friendly error message
+        if (errorData && errorData.error && typeof errorData.error === 'string') {
+          alert(`Error: ${errorData.error}`);
+        } else {
+          const errorMessage = `Failed to submit guess (${response.status}: ${response.statusText})`;
+          alert(errorMessage);
+          console.error('Failed to submit guess - no error details available', {
+            status: response.status,
+            statusText: response.statusText,
+          });
+        }
         return;
       }
 
@@ -174,6 +220,10 @@ export default function PlayPage() {
         alert('Error: Invalid response from server');
         return;
       }
+
+      // IMPORTANT: Refresh profile from database BEFORE showing verdict
+      // This ensures the header shows the latest points/streak from DB
+      await refreshProfile();
 
       // Ensure featureFlags is always an array
       const verdictDataWithFlags: VerdictData = {
@@ -188,10 +238,6 @@ export default function PlayPage() {
 
       setVerdictData(verdictDataWithFlags);
       setShowVerdict(true);
-
-      // IMPORTANT: Refresh profile from database so navbar updates immediately
-      // This ensures the header shows the latest points/streak from DB
-      await refreshProfile();
 
       // Fetch ML classification if available
       if (email) {
@@ -262,17 +308,41 @@ export default function PlayPage() {
         <div className="text-center max-w-md">
           <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-            If no emails are available, you may need to seed the database.
+            Click the button below to automatically generate new emails for the game.
           </p>
-          <div className="flex gap-2 justify-center">
+          <div className="flex flex-col gap-2 justify-center items-center">
             <button
               onClick={async () => {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) await fetchNextEmail(user.id);
+                setLoading(true);
+                setError(null);
+                try {
+                  // Try to generate emails first
+                  const genResponse = await fetch('/api/emails/auto-generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count: 20 }),
+                  });
+                  
+                  if (genResponse.ok) {
+                    const genData = await genResponse.json();
+                    setError(`Generated ${genData.inserted || 0} new emails! Loading...`);
+                    // Wait a moment then fetch email
+                    setTimeout(async () => {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (user) await fetchNextEmail(user.id);
+                    }, 1000);
+                  } else {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) await fetchNextEmail(user.id);
+                  }
+                } catch {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) await fetchNextEmail(user.id);
+                }
               }}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
-              Retry
+              Generate Emails & Retry
             </button>
             <button
               onClick={() => router.push('/leaderboard')}
@@ -333,6 +403,7 @@ export default function PlayPage() {
           mlProbPhish={mlData?.prob_phish}
           mlReasons={mlData?.reasons}
           mlTokens={mlData?.topTokens}
+          unlockedBadges={verdictData.unlockedBadges}
           onClose={() => setShowVerdict(false)}
           onNext={handleNext}
         />
