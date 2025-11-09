@@ -320,7 +320,8 @@ export async function bedrockMockGenerateEmails(count: number): Promise<Generate
     },
   ];
 
-  // Generate emails by cycling through types
+  // Generate emails by cycling through types with variation
+  const timestamp = Date.now();
   for (let i = 0; i < count; i++) {
     const typeIndex = i % emailTypes.length;
     const emailType = emailTypes[typeIndex];
@@ -328,12 +329,27 @@ export async function bedrockMockGenerateEmails(count: number): Promise<Generate
     
     let emailToAdd: GeneratedEmail;
     if (isPhish && emailType.phishing) {
-      emailToAdd = emailType.phishing;
+      // Create a copy and add variation to avoid exact duplicates
+      emailToAdd = {
+        ...emailType.phishing,
+        subject: `${emailType.phishing.subject} (${timestamp}-${i})`,
+        from_email: emailType.phishing.from_email.replace('@', `+${i}@`),
+      };
     } else if (!isPhish && emailType.legitimate) {
-      emailToAdd = emailType.legitimate;
+      // Create a copy and add variation to avoid exact duplicates
+      emailToAdd = {
+        ...emailType.legitimate,
+        subject: `${emailType.legitimate.subject} (${timestamp}-${i})`,
+        from_email: emailType.legitimate.from_email.replace('@', `+${i}@`),
+      };
     } else {
       // Fallback
-      emailToAdd = emailType.legitimate || emailType.phishing;
+      const baseEmail = emailType.legitimate || emailType.phishing;
+      emailToAdd = {
+        ...baseEmail,
+        subject: `${baseEmail.subject} (${timestamp}-${i})`,
+        from_email: baseEmail.from_email.replace('@', `+${i}@`),
+      };
     }
     
     // Ensure features is always an array (even if empty) for consistency

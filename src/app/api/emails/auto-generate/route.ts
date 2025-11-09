@@ -144,34 +144,57 @@ export async function POST(request: Request) {
       },
     });
 
-    // 7. Deduplicate
+    // 7. Deduplicate - improved to catch all duplicates
+    console.log(`🔍 Checking for duplicates among ${validatedEmails.length} emails...`);
+    
     const emailKeys = validatedEmails.map(e => ({
-      from_email: e.from_email,
-      subject: e.subject,
+      from_email: e.from_email.toLowerCase().trim(),
+      subject: e.subject.trim(),
     }));
 
     const existingSet = new Set<string>();
-    const uniqueFromEmails = [...new Set(emailKeys.map(k => k.from_email))];
+    
+    // Build a map of from_email -> subjects for efficient querying
+    const fromEmailMap = new Map<string, string[]>();
+    for (const key of emailKeys) {
+      if (!fromEmailMap.has(key.from_email)) {
+        fromEmailMap.set(key.from_email, []);
+      }
+      fromEmailMap.get(key.from_email)!.push(key.subject);
+    }
 
-    for (const fromEmail of uniqueFromEmails) {
-      const { data } = await serviceSupabase
+    // Query all potential duplicates in batches
+    for (const [fromEmail, subjects] of fromEmailMap.entries()) {
+      const { data, error } = await serviceSupabase
         .from('emails')
         .select('from_email, subject')
         .eq('from_email', fromEmail)
-        .in('subject', emailKeys.filter(k => k.from_email === fromEmail).map(k => k.subject));
+        .in('subject', subjects);
+
+      if (error) {
+        console.warn(`⚠️ Error checking duplicates for ${fromEmail}:`, error);
+        continue;
+      }
 
       if (data) {
         for (const existing of data) {
-          existingSet.add(`${existing.from_email}::${existing.subject}`);
+          // Normalize for comparison
+          const normalizedKey = `${existing.from_email.toLowerCase().trim()}::${existing.subject.trim()}`;
+          existingSet.add(normalizedKey);
         }
       }
     }
 
-    const newEmails = validatedEmails.filter(
-      email => !existingSet.has(`${email.from_email}::${email.subject}`)
-    );
+    // Filter out duplicates using normalized keys
+    const newEmails = validatedEmails.filter(email => {
+      const normalizedKey = `${email.from_email.toLowerCase().trim()}::${email.subject.trim()}`;
+      return !existingSet.has(normalizedKey);
+    });
+
+    console.log(`📊 Deduplication: ${validatedEmails.length} total, ${existingSet.size} duplicates found, ${newEmails.length} new emails`);
 
     if (newEmails.length === 0) {
+      console.log('✅ All generated emails already exist in database');
       return NextResponse.json({
         inserted: 0,
         skipped: validatedEmails.length,
@@ -198,31 +221,67 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }));
 
+    // 8. Insert emails - handle duplicates gracefully
+    let inserted = 0;
+    let skipped = validatedEmails.length - newEmails.length;
+    
+    // Try bulk insert first
     const { data: insertedData, error: insertError } = await serviceSupabase
       .from('emails')
       .insert(emailsToInsert)
       .select('id');
 
     if (insertError) {
-      console.error('Database insert error:', insertError);
-      return NextResponse.json(
-        {
-          error: 'Failed to insert emails into database',
-          details: insertError.message,
-        },
-        { status: 500 }
-      );
+      // If it's a duplicate key error, try inserting one by one to see which succeed
+      if (insertError.code === '23505') {
+        console.log('⚠️ Duplicate key error on bulk insert, trying individual inserts...');
+        
+        // Insert emails one by one to handle duplicates gracefully
+        for (const email of emailsToInsert) {
+          const { data: singleData, error: singleError } = await serviceSupabase
+            .from('emails')
+            .insert(email)
+            .select('id');
+          
+          if (singleError) {
+            if (singleError.code === '23505') {
+              // This is a duplicate - skip it
+              skipped++;
+              console.log(`⏭️ Skipped duplicate: ${email.from_email} - ${email.subject.substring(0, 50)}`);
+            } else {
+              // Other error - log but continue
+              console.error(`❌ Error inserting email:`, singleError);
+            }
+          } else if (singleData && singleData.length > 0) {
+            inserted++;
+          }
+        }
+      } else {
+        // Other database error
+        console.error('Database insert error:', insertError);
+        return NextResponse.json(
+          {
+            error: 'Failed to insert emails into database',
+            details: insertError.message,
+            code: insertError.code,
+          },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Success - all emails inserted
+      inserted = insertedData?.length || 0;
     }
-
-    const inserted = insertedData?.length || 0;
-    const skipped = validatedEmails.length - newEmails.length;
 
     console.log(`✅ Email insertion complete: ${inserted} inserted, ${skipped} skipped`);
 
+    // Return success even if some were duplicates (that's expected behavior)
     return NextResponse.json({
       inserted,
       skipped,
-      message: `Successfully generated ${inserted} new emails`,
+      message: inserted > 0 
+        ? `Successfully generated ${inserted} new emails${skipped > 0 ? ` (${skipped} were duplicates)` : ''}`
+        : `All ${skipped} generated emails were duplicates (already exist in database)`,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
