@@ -428,9 +428,9 @@ export default function PlayPage() {
                 }
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
+              disabled={loading && error?.includes('Generating')}
             >
-              {loading ? 'Generating...' : 'Generate Emails & Retry'}
+              {loading && error?.includes('Generating') ? 'Generating...' : 'Generate Emails & Retry'}
             </button>
             <button
               onClick={() => router.push('/leaderboard')}
