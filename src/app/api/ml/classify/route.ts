@@ -127,10 +127,19 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         console.error('ML classification error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error details:', {
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: errorMessage,
           stack: error instanceof Error ? error.stack : undefined,
         });
+        
+        // Check for specific AWS authentication errors
+        if (errorMessage.includes('signature') || errorMessage.includes('Secret Access Key')) {
+          console.error('🔴 AWS Authentication Error: Invalid AWS_SECRET_ACCESS_KEY in Vercel environment variables. Please check:');
+          console.error('   1. AWS_SECRET_ACCESS_KEY is correct (no extra spaces/characters)');
+          console.error('   2. Credentials are for the correct AWS account');
+          console.error('   3. IAM user has bedrock:InvokeModel permission');
+        }
         // Continue without ML results if ML fails
       }
     } else {
