@@ -225,7 +225,7 @@ export default function VerdictModal({
                   : 'bg-red-100 text-red-800 border-2 border-red-200'
               }`}
             >
-              {pointsDelta > 0 ? `+${pointsDelta}` : '0'} points
+              {pointsDelta > 0 ? `+${pointsDelta}` : pointsDelta} points
             </div>
           </div>
         </CardHeader>
