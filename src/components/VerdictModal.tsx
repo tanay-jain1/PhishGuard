@@ -285,7 +285,8 @@ export default function VerdictModal({
             </div>
           )}
 
-          {mlProbPhish !== undefined && (
+          {mlProbPhish !== undefined && 
+           ((mlReasons && mlReasons.length > 0) || (mlTokens && mlTokens.length > 0)) && (
             <div className="rounded-xl border-2 border-[#f5f0e6] bg-[#dbeafe]/20 p-4">
               <h3 className="mb-2 text-sm font-semibold text-[#1b2a49]">
                 Model Assist

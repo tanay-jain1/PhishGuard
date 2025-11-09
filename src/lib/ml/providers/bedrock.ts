@@ -156,6 +156,14 @@ Only return valid JSON, no additional text.`;
       const reasons = Array.isArray(parsed.reasons) ? parsed.reasons : [];
       const topTokens = Array.isArray(parsed.topTokens) ? parsed.topTokens : [];
 
+      // Log if we got default/empty results (indicates potential failure)
+      if (prob_phish === 0.5 && reasons.length === 0 && topTokens.length === 0) {
+        console.warn('Bedrock returned default values - may indicate parsing failure:', {
+          parsed,
+          jsonText: jsonText.substring(0, 200),
+        });
+      }
+
       return {
         prob_phish,
         reasons: reasons.length > 0 ? reasons : undefined,
@@ -163,7 +171,8 @@ Only return valid JSON, no additional text.`;
       };
     } catch (error) {
       console.error('Bedrock classification error:', error);
-      return { prob_phish: 0.5, reasons: [], topTokens: [] };
+      // Return undefined to indicate failure (not default 0.5)
+      throw error; // Let the caller handle the error
     }
   }
 }
