@@ -29,6 +29,7 @@ interface VerdictData {
   explanation: string;
   featureFlags: string[];
   difficulty?: string;
+  isPhish?: boolean; // Actual answer from database
 }
 
 interface MlData {
@@ -222,7 +223,7 @@ export default function PlayPage() {
         return;
       }
 
-      // IMPORTANT: Refresh profile from database BEFORE showing verdict
+      // IMPORTANT: Refresh profile from database AFTER processing guess
       // This ensures the header shows the latest points/streak from DB
       await refreshProfile();
 
@@ -235,7 +236,13 @@ export default function PlayPage() {
         explanation: data.explanation || '',
         featureFlags: data.featureFlags || [],
         difficulty: data.difficulty,
+        isPhish: data.isPhish, // Pass through actual answer from database
       };
+      
+      // Debug: Log the actual answer to verify it's being passed
+      if (data.isPhish !== undefined) {
+        console.log('Email actual answer (isPhish):', data.isPhish, typeof data.isPhish);
+      }
 
       setVerdictData(verdictDataWithFlags);
       setShowVerdict(true);
@@ -418,8 +425,10 @@ export default function PlayPage() {
           mlProbPhish={mlData?.prob_phish}
           mlReasons={mlData?.reasons}
           mlTokens={mlData?.topTokens}
-          showRecapQuiz={showRecapQuiz}
+          showRecapQuiz={showRecapQuiz ?? false}
+          consecutiveWrongs={consecutiveWrongs}
           unlockedBadges={verdictData.unlockedBadges}
+          isPhish={verdictData.isPhish}
           onClose={() => setShowVerdict(false)}
           onNext={handleNext}
           onQuizComplete={handleQuizComplete}

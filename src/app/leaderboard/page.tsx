@@ -1,73 +1,100 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface LeaderboardEntry {
-  userId: string;
   username: string | null;
   points: number;
-  streak: number;
   accuracy: number;
-  created_at?: string;
+  streak: number;
+}
+
+interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
+  lastUpdated?: string;
 }
 
 export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const fetchData = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        router.push('/');
+    if (!user) {
+      router.push('/');
+      return;
+    }
+
+    try {
+      // Fetch from server API route
+      const response = await fetch('/api/leaderboard', {
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch leaderboard:', errorData);
+        setEntries([]);
+        setLoading(false);
         return;
       }
 
-      setCurrentUserId(user.id);
+      const data: LeaderboardResponse = await response.json();
+      setEntries(data.entries || []);
+    } catch (error) {
+      console.error('Failed to fetch leaderboard:', error);
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [router, supabase]);
 
-      try {
-        // Fetch from server API route to ensure fresh data (no caching)
-        const response = await fetch('/api/leaderboard', {
-          cache: 'no-store',
-        });
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error('Failed to fetch leaderboard:', errorData);
-          setEntries([]);
-          setLoading(false);
-          return;
-        }
+  // Poll every 20 seconds
+  useEffect(() => {
+    pollIntervalRef.current = setInterval(() => {
+      fetchData();
+    }, 20000); // 20 seconds
 
-        const { entries: leaderboardEntries } = await response.json();
-        setEntries(leaderboardEntries || []);
-      } catch (error) {
-        console.error('Failed to fetch leaderboard:', error);
-        setEntries([]);
-      } finally {
-        setLoading(false);
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [fetchData]);
+
+  // Revalidate on page visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
       }
     };
 
-    fetchData();
-  }, [router, supabase]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchData]);
 
-  // Helper function to get display name (username or short id)
-  const getDisplayName = (username: string | null, userId: string): string => {
+  // Helper function to get display name (handles null gracefully)
+  const getDisplayName = (username: string | null): string => {
     if (username && username.trim().length > 0) {
       return username;
     }
-    // Return first 8 characters of user ID
-    return userId.substring(0, 8);
+    return 'Anonymous';
   };
 
   if (loading) {
@@ -122,18 +149,14 @@ export default function LeaderboardPage() {
               <tbody className="divide-y divide-[#f5f0e6]">
                 {entries.map((entry, index) => (
                   <tr
-                    key={entry.userId}
-                    className={
-                      entry.userId === currentUserId
-                        ? 'bg-[#dbeafe]/40'
-                        : 'hover:bg-[#f5f0e6]/30'
-                    }
+                    key={`${entry.username}-${index}-${entry.points}`}
+                    className="hover:bg-[#f5f0e6]/30"
                   >
                     <td className="px-6 py-4 text-sm font-medium text-[#1b2a49]">
                       {index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm text-[#1b2a49]">
-                      {getDisplayName(entry.username, entry.userId)}
+                      {getDisplayName(entry.username)}
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-[#1b2a49]">
                       {entry.points}

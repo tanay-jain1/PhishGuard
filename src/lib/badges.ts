@@ -1,90 +1,174 @@
 /**
  * Badge System for PhishGuard
  * 
- * Badges are awarded based on cumulative points earned.
- * Each badge has a name, description, and point threshold.
+ * Pure/deterministic badge computation functions.
+ * No database calls - all functions are side-effect free.
  */
+
+export type BadgeRequirementType = 'points' | 'streak' | 'correct_at_level';
 
 export type Badge = {
   id: string;
   name: string;
-  description: string;
   icon: string;
+  requirementType: BadgeRequirementType;
   threshold: number;
+  level?: 1 | 2 | 3;
+  description: string;
 };
 
 export const BADGES: Badge[] = [
   {
     id: 'first_steps',
     name: 'First Steps',
-    description: 'Earned your first 5 points',
     icon: '🌱',
+    requirementType: 'points',
     threshold: 5,
+    description: 'Earn 5 points',
   },
   {
-    id: 'getting_started',
-    name: 'Getting Started',
-    description: 'Reached 25 points',
+    id: 'rising_star',
+    name: 'Rising Star',
     icon: '⭐',
+    requirementType: 'points',
     threshold: 25,
+    description: 'Earn 25 points',
   },
   {
-    id: 'phish_detector',
-    name: 'Phish Detector',
-    description: 'Achieved 50 points',
-    icon: '🔍',
-    threshold: 50,
+    id: 'eagle_eye',
+    name: 'Eagle Eye',
+    icon: '🦅',
+    requirementType: 'streak',
+    threshold: 10,
+    description: 'Achieve a 10 streak',
   },
   {
-    id: 'security_expert',
-    name: 'Security Expert',
-    description: 'Reached 100 points',
-    icon: '🛡️',
-    threshold: 100,
+    id: 'medium_master',
+    name: 'Medium Master',
+    icon: '🎯',
+    requirementType: 'correct_at_level',
+    threshold: 10,
+    level: 2,
+    description: 'Get 10 medium questions correct',
   },
   {
-    id: 'cyber_guardian',
-    name: 'Cyber Guardian',
-    description: 'Earned 250 points',
-    icon: '👑',
-    threshold: 250,
-  },
-  {
-    id: 'phishing_master',
-    name: 'Phishing Master',
-    description: 'Achieved 500 points',
-    icon: '🏆',
-    threshold: 500,
-  },
-  {
-    id: 'legend',
-    name: 'Legend',
-    description: 'Reached 1000 points',
-    icon: '🌟',
-    threshold: 1000,
+    id: 'hard_hawk',
+    name: 'Hard Hawk',
+    icon: '🦅',
+    requirementType: 'correct_at_level',
+    threshold: 8,
+    level: 3,
+    description: 'Get 8 hard questions correct',
   },
 ];
 
-/**
- * Calculate which badges a user has earned based on their points
- */
-export function calculateBadges(points: number): string[] {
-  return BADGES.filter((badge) => points >= badge.threshold).map((badge) => badge.id);
+export interface ProfileSnapshot {
+  points: number;
+  streak: number;
+  easyCorrect?: number;
+  mediumCorrect?: number;
+  hardCorrect?: number;
+}
+
+export interface BadgeProgress {
+  earnedIds: string[];
+  nextBadge?: {
+    id: string;
+    percent: number;
+    current: number;
+    target: number;
+  };
 }
 
 /**
- * Get badge details by ID
+ * Get badge progress based on profile snapshot
+ */
+export function getBadgeProgress(
+  profile: ProfileSnapshot,
+  existingBadges: string[] = []
+): BadgeProgress {
+  const earnedIds: string[] = [...existingBadges];
+
+  // Check each badge requirement
+  for (const badge of BADGES) {
+    if (earnedIds.includes(badge.id)) continue;
+
+    let earned = false;
+    switch (badge.requirementType) {
+      case 'points':
+        earned = profile.points >= badge.threshold;
+        break;
+      case 'streak':
+        earned = profile.streak >= badge.threshold;
+        break;
+      case 'correct_at_level':
+        if (badge.level === 1) {
+          earned = (profile.easyCorrect || 0) >= badge.threshold;
+        } else if (badge.level === 2) {
+          earned = (profile.mediumCorrect || 0) >= badge.threshold;
+        } else if (badge.level === 3) {
+          earned = (profile.hardCorrect || 0) >= badge.threshold;
+        }
+        break;
+    }
+
+    if (earned) {
+      earnedIds.push(badge.id);
+    }
+  }
+
+  // Find next badge
+  const nextBadge = BADGES.find((badge) => !earnedIds.includes(badge.id));
+
+  if (!nextBadge) {
+    return { earnedIds };
+  }
+
+  let current = 0;
+  switch (nextBadge.requirementType) {
+    case 'points':
+      current = profile.points;
+      break;
+    case 'streak':
+      current = profile.streak;
+      break;
+    case 'correct_at_level':
+      if (nextBadge.level === 1) {
+        current = profile.easyCorrect || 0;
+      } else if (nextBadge.level === 2) {
+        current = profile.mediumCorrect || 0;
+      } else if (nextBadge.level === 3) {
+        current = profile.hardCorrect || 0;
+      }
+      break;
+  }
+
+  const percent = Math.min(100, Math.max(0, (current / nextBadge.threshold) * 100));
+
+  return {
+    earnedIds,
+    nextBadge: {
+      id: nextBadge.id,
+      percent,
+      current,
+      target: nextBadge.threshold,
+    },
+  };
+}
+
+/**
+ * Merge existing badges with newly earned ones (dedupe)
+ */
+export function mergeBadges(
+  existingBadges: string[],
+  newlyEarnedIds: string[]
+): string[] {
+  return Array.from(new Set([...existingBadges, ...newlyEarnedIds]));
+}
+
+/**
+ * Get badge by ID
  */
 export function getBadgeById(id: string): Badge | undefined {
   return BADGES.find((badge) => badge.id === id);
 }
-
-/**
- * Get all badges a user has earned
- */
-export function getUserBadges(badgeIds: string[]): Badge[] {
-  return badgeIds
-    .map((id) => getBadgeById(id))
-    .filter((badge): badge is Badge => badge !== undefined);
-}
-

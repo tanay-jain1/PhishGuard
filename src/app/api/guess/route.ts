@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { getBadgeProgress, mergeBadges } from '@/lib/badges';
 
 export async function POST(request: Request) {
   try {
@@ -41,10 +42,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Load email row to get explanation and features
+    // Load email row to get explanation, features, and actual answer
     const { data: email, error: emailError } = await supabase
       .from('emails')
-      .select('id, explanation, features, difficulty')
+      .select('id, explanation, features, difficulty, is_phish')
       .eq('id', emailId)
       .single();
 
@@ -121,30 +122,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // The RPC function now returns profile data directly, so use it
-    // If profile is in the RPC result, use it; otherwise fetch separately
-    if (rpcResult.profile) {
-      console.log('Profile from RPC:', rpcResult.profile);
-      return NextResponse.json({
-        correct: rpcResult.correct,
-        pointsDelta: rpcResult.pointsDelta,
-        profile: {
-          points: rpcResult.profile.points ?? 0,
-          streak: rpcResult.profile.streak ?? 0,
-          accuracy: rpcResult.profile.accuracy ?? 0,
-          badges: (rpcResult.profile.badges as string[]) || [],
-        },
-        unlockedBadges: rpcResult.unlockedBadges || [],
-        explanation: email.explanation || '',
-        featureFlags: (email.features as string[]) || [],
-        difficulty: rpcResult.difficulty || email.difficulty,
-      });
-    }
+    // Get updated points and streak from RPC result
+    const newPoints = rpcResult.profile?.points ?? 0;
+    const newStreak = rpcResult.profile?.streak ?? 0;
 
-    // Fallback: fetch profile if RPC didn't return it (for backward compatibility)
+    // Get user stats for badge computation
+    const { data: statsData, error: statsError } = await supabase.rpc('get_user_stats', {
+      p_user_id: userId,
+    });
+
+    // Fetch current profile to get existing badges
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('points, streak, accuracy, badges')
+      .select('badges')
       .eq('id', userId)
       .single();
 
@@ -154,33 +144,103 @@ export async function POST(request: Request) {
         correct: rpcResult.correct,
         pointsDelta: rpcResult.pointsDelta,
         profile: {
-          points: 0,
-          streak: 0,
-          accuracy: 0,
+          points: newPoints,
+          streak: newStreak,
+          accuracy: rpcResult.profile?.accuracy ?? 0,
           badges: [],
         },
-        unlockedBadges: rpcResult.unlockedBadges || [],
+        unlockedBadges: [],
         explanation: email.explanation || '',
         featureFlags: (email.features as string[]) || [],
         difficulty: rpcResult.difficulty || email.difficulty,
+        isPhish: email.is_phish, // Include actual answer even in error case
       });
     }
 
-    console.log('Profile fetched from DB:', profile);
-    return NextResponse.json({
+    // Get current badges (handle JSONB format)
+    const currentBadges = Array.isArray(profile.badges)
+      ? (profile.badges as string[])
+      : profile.badges
+      ? (typeof profile.badges === 'string' ? JSON.parse(profile.badges) : profile.badges)
+      : [];
+
+    // Compute badge progress
+    const stats = statsData?.[0] || {};
+    const badgeProgress = getBadgeProgress(
+      {
+        points: newPoints,
+        streak: newStreak,
+        easyCorrect: stats.easy_correct || 0,
+        mediumCorrect: stats.medium_correct || 0,
+        hardCorrect: stats.hard_correct || 0,
+      },
+      currentBadges
+    );
+
+    // Find newly unlocked badges
+    const newlyUnlocked = badgeProgress.earnedIds.filter((id) => !currentBadges.includes(id));
+
+    // Update badges in database if there are new ones
+    if (newlyUnlocked.length > 0) {
+      const mergedBadges = mergeBadges(currentBadges, newlyUnlocked);
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ badges: mergedBadges })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('Failed to update badges:', updateError);
+        // Continue anyway - badges will be updated on next request
+      }
+    }
+
+    // Build response
+    const response: {
+      correct: boolean;
+      pointsDelta: number;
+      profile: {
+        points: number;
+        streak: number;
+        accuracy: number;
+        badges: string[];
+      };
+      unlockedBadges?: string[];
+      nextBadge?: {
+        id: string;
+        percent: number;
+        current: number;
+        target: number;
+      };
+      explanation?: string;
+      featureFlags?: string[];
+      difficulty?: string;
+      isPhish?: boolean; // Actual answer from database
+    } = {
       correct: rpcResult.correct,
       pointsDelta: rpcResult.pointsDelta,
       profile: {
-        points: profile.points ?? 0,
-        streak: profile.streak ?? 0,
-        accuracy: profile.accuracy ?? 0,
-        badges: (profile.badges as string[]) || [],
+        points: newPoints,
+        streak: newStreak,
+        accuracy: rpcResult.profile?.accuracy ?? 0,
+        badges: badgeProgress.earnedIds,
       },
-      unlockedBadges: rpcResult.unlockedBadges || [],
       explanation: email.explanation || '',
       featureFlags: (email.features as string[]) || [],
       difficulty: rpcResult.difficulty || email.difficulty,
-    });
+      isPhish: email.is_phish, // Include actual answer
+    };
+
+    // Add unlocked badges if any
+    if (newlyUnlocked.length > 0) {
+      response.unlockedBadges = newlyUnlocked;
+    }
+
+    // Add next badge progress if available
+    if (badgeProgress.nextBadge) {
+      response.nextBadge = badgeProgress.nextBadge;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Guess API error:', error);

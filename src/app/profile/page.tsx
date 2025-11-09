@@ -3,47 +3,87 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useProfileContext } from '@/providers/profile-provider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { getUserBadges, BADGES } from '@/lib/badges';
+import { getBadgeById, BADGES } from '@/lib/badges';
 
-interface Stats {
-  totalGuesses: number;
-  correctGuesses: number;
+interface SummaryData {
+  points: number;
+  streak: number;
   accuracy: number;
+  totalGuesses: number;
+  badges: string[];
+  nextBadge: {
+    id: string;
+    percent: number;
+    current: number;
+    target: number;
+  } | null;
+  perLevel: {
+    easyCorrect: number;
+    mediumCorrect: number;
+    hardCorrect: number;
+  };
 }
 
 export default function ProfilePage() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameValue, setUsernameValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
-  const { profile, loading, refreshProfile, updateUsername } = useProfileContext();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const fetchSummary = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        router.push('/auth');
-        return;
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/profile/summary', {
+        headers: {
+          Authorization: `Bearer ${user.id}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch profile summary');
       }
 
-      // Initialize username value from profile
+      const data = await response.json();
+      setSummary(data);
+
+      // Fetch username separately
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+
       if (profile) {
+        setUsername(profile.username);
         setUsernameValue(profile.username || '');
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch profile summary:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    checkAuth();
-  }, [router, supabase, profile]);
+  useEffect(() => {
+    fetchSummary();
+  }, [router, supabase]);
 
   const handleSaveUsername = async () => {
     if (!usernameValue.trim()) {
@@ -55,20 +95,35 @@ export default function ProfilePage() {
     setError(null);
 
     try {
-      // Call updateUsername from hook (this already calls refreshProfile internally)
-      const result = await updateUsername(usernameValue.trim());
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      if (!result.success) {
-        setError(result.error || 'Failed to update username');
+      if (!user) {
+        setError('Not authenticated');
+        return;
+      }
+
+      const response = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.id}`,
+        },
+        body: JSON.stringify({ username: usernameValue.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || 'Failed to update username');
         setSaving(false);
         return;
       }
 
-      // Explicitly refresh profile to ensure hook state is updated
-      await refreshProfile();
-
+      setUsername(usernameValue.trim());
       setEditingUsername(false);
       setError(null);
+      await fetchSummary();
     } catch (error) {
       console.error('Failed to save username:', error);
       setError('Failed to save username');
@@ -79,51 +134,11 @@ export default function ProfilePage() {
 
   const handleCancelEdit = () => {
     setEditingUsername(false);
-    setUsernameValue(profile?.username || '');
+    setUsernameValue(username || '');
     setError(null);
   };
 
-  // Fetch stats
-  useEffect(() => {
-    const fetchStats = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      try {
-        const { count: totalGuesses } = await supabase
-          .from('guesses')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
-
-        const { count: correctGuesses } = await supabase
-          .from('guesses')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('is_correct', true);
-
-        const total = totalGuesses || 0;
-        const correct = correctGuesses || 0;
-        const accuracy = total > 0 ? (correct / total) * 100 : 0;
-
-        setStats({
-          totalGuesses: total,
-          correctGuesses: correct,
-          accuracy: Math.round(accuracy * 100) / 100,
-        });
-      } catch (error) {
-        console.error('Failed to fetch stats:', error);
-      }
-    };
-
-    if (profile) {
-      fetchStats();
-    }
-  }, [profile, supabase]);
-
-  if (loading) {
+  if (loading || !summary) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
@@ -131,7 +146,8 @@ export default function ProfilePage() {
     );
   }
 
-  const hasUsername = profile?.username && profile.username.trim().length > 0;
+  const hasUsername = username && username.trim().length > 0;
+  const nextBadge = summary.nextBadge ? getBadgeById(summary.nextBadge.id) : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -151,7 +167,7 @@ export default function ProfilePage() {
                   Points
                 </div>
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {profile?.points || 0}
+                  {summary.points}
                 </div>
               </div>
               <div>
@@ -159,7 +175,7 @@ export default function ProfilePage() {
                   Current Streak
                 </div>
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {profile?.streak || 0}
+                  {summary.streak}
                 </div>
               </div>
               <div>
@@ -167,23 +183,17 @@ export default function ProfilePage() {
                   Accuracy
                 </div>
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {profile?.accuracy !== undefined
-                    ? `${(profile.accuracy * 100).toFixed(1)}%`
-                    : stats
-                    ? `${stats.accuracy.toFixed(1)}%`
-                    : '0.0%'}
+                  {(summary.accuracy * 100).toFixed(1)}%
                 </div>
               </div>
-              {stats && (
-                <div>
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Total Guesses
-                  </div>
-                  <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                    {stats.totalGuesses}
-                  </div>
+              <div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Total Guesses
                 </div>
-              )}
+                <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                  {summary.totalGuesses}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -197,7 +207,6 @@ export default function ProfilePage() {
                   Username
                 </div>
                 {!hasUsername ? (
-                  // Show form to set username
                   <div className="space-y-2">
                     <Input
                       type="text"
@@ -224,7 +233,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 ) : editingUsername ? (
-                  // Show edit form
                   <div className="space-y-2">
                     <Input
                       type="text"
@@ -258,15 +266,14 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 ) : (
-                  // Show username with edit button
                   <div className="space-y-2">
                     <div className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                      {profile?.username}
+                      {username}
                     </div>
                     <Button
                       onClick={() => {
                         setEditingUsername(true);
-                        setUsernameValue(profile?.username || '');
+                        setUsernameValue(username || '');
                         setError(null);
                       }}
                       variant="outline"
@@ -277,96 +284,102 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
+
+              {/* Badge chips */}
+              {summary.badges && summary.badges.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
+                    Badges
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {summary.badges.map((badgeId) => {
+                      const badge = getBadgeById(badgeId);
+                      if (!badge) return null;
+                      return (
+                        <span
+                          key={badgeId}
+                          className="inline-flex items-center gap-1 rounded-full border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+                        >
+                          <span>{badge.icon}</span>
+                          <span>{badge.name}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Badges Section */}
+        {/* Next Badge Card */}
+        {summary.nextBadge && nextBadge && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Next Badge</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl">{nextBadge.icon}</span>
+                <div>
+                  <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                    {nextBadge.name}
+                  </div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {nextBadge.description}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                  <div
+                    className="h-full bg-blue-500 transition-all"
+                    style={{
+                      width: `${summary.nextBadge.percent}%`,
+                    }}
+                  />
+                </div>
+                <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                  {summary.nextBadge.current} / {summary.nextBadge.target}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* All Badges Section */}
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Badges</CardTitle>
+            <CardTitle>All Badges</CardTitle>
           </CardHeader>
           <CardContent>
-            {profile?.badges && profile.badges.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {getUserBadges(profile.badges).map((badge) => (
-                  <div
-                    key={badge.id}
-                    className="rounded-lg border border-zinc-200 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-900"
-                  >
-                    <div className="mb-2 text-4xl">{badge.icon}</div>
-                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                      {badge.name}
+            {summary.badges && summary.badges.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+                {summary.badges.map((badgeId) => {
+                  const badge = getBadgeById(badgeId);
+                  if (!badge) return null;
+                  return (
+                    <div
+                      key={badgeId}
+                      className="rounded-lg border border-zinc-200 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-900"
+                    >
+                      <div className="mb-2 text-4xl">{badge.icon}</div>
+                      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {badge.name}
+                      </div>
+                      <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                        {badge.description}
+                      </div>
                     </div>
-                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      {badge.description}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center text-zinc-600 dark:text-zinc-400">
                 <p className="mb-2">No badges earned yet!</p>
                 <p className="text-sm">
-                  Start playing to earn your first badge at 5 points.
+                  Start playing to earn your first badge.
                 </p>
-              </div>
-            )}
-
-            {/* Show next badge to unlock */}
-            {profile && (
-              <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  Next Badge
-                </div>
-                {(() => {
-                  const nextBadge = BADGES.find(
-                    (badge) => !profile.badges?.includes(badge.id)
-                  );
-                  if (nextBadge) {
-                    const pointsNeeded = nextBadge.threshold - (profile.points || 0);
-                    return (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{nextBadge.icon}</span>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                              {nextBadge.name}
-                            </div>
-                            <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                              {pointsNeeded > 0
-                                ? `${pointsNeeded} more points needed`
-                                : 'Unlocked!'}
-                            </div>
-                          </div>
-                        </div>
-                        {pointsNeeded > 0 && (
-                          <div className="mt-2">
-                            <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                              <div
-                                className="h-full bg-blue-500 transition-all"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    ((profile.points || 0) / nextBadge.threshold) * 100
-                                  )}%`,
-                                }}
-                              />
-                            </div>
-                            <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                              {profile.points || 0} / {nextBadge.threshold} points
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                      🏆 You've earned all badges! Amazing work!
-                    </div>
-                  );
-                })()}
               </div>
             )}
           </CardContent>

@@ -41,16 +41,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Fetch profile from database
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('points, streak, accuracy, badges, username')
-        .eq('id', user.id)
-        .single();
+      // Fetch profile summary from API
+      const response = await fetch('/api/profile/summary', {
+        headers: {
+          Authorization: `Bearer ${user.id}`,
+        },
+      });
 
-      if (profileError) {
-        // Profile doesn't exist yet - initialize it
-        if (profileError.code === 'PGRST116') {
+      if (!response.ok) {
+        // If profile doesn't exist, try to initialize it
+        if (response.status === 500) {
           try {
             await fetch('/api/auth/init', {
               method: 'POST',
@@ -58,19 +58,19 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
               body: JSON.stringify({ userId: user.id }),
             });
             // Retry fetching after init
-            const { data: retryData } = await supabase
-              .from('profiles')
-              .select('points, streak, accuracy, badges, username')
-              .eq('id', user.id)
-              .single();
-
-            if (retryData) {
+            const retryResponse = await fetch('/api/profile/summary', {
+              headers: {
+                Authorization: `Bearer ${user.id}`,
+              },
+            });
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json();
               setProfile({
-                points: retryData.points || 0,
-                streak: retryData.streak || 0,
-                accuracy: retryData.accuracy || 0,
-                badges: (retryData.badges as string[]) || [],
-                username: retryData.username || null,
+                points: retryData.points,
+                streak: retryData.streak,
+                accuracy: retryData.accuracy,
+                badges: retryData.badges,
+                username: null,
               });
             } else {
               setProfile({
@@ -92,7 +92,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             });
           }
         } else {
-          console.error('Failed to fetch profile:', profileError);
+          console.error('Failed to fetch profile summary:', response.status, response.statusText);
           setProfile({
             points: 0,
             streak: 0,
@@ -101,21 +101,21 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             username: null,
           });
         }
-      } else if (profileData) {
-        setProfile({
-          points: profileData.points || 0,
-          streak: profileData.streak || 0,
-          accuracy: profileData.accuracy || 0,
-          badges: (profileData.badges as string[]) || [],
-          username: profileData.username || null,
-        });
       } else {
+        const data = await response.json();
+        // Fetch username separately
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
         setProfile({
-          points: 0,
-          streak: 0,
-          accuracy: 0,
-          badges: [],
-          username: null,
+          points: data.points,
+          streak: data.streak,
+          accuracy: data.accuracy,
+          badges: data.badges,
+          username: profileData?.username || null,
         });
       }
     } catch (err) {
@@ -189,4 +189,3 @@ export function useProfileContext() {
   }
   return context;
 }
-

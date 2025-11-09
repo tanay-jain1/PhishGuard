@@ -3,11 +3,13 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getBadgeById, BADGES } from '@/lib/badges';
 
 interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: number;
+  explanation: string;
 }
 
 const QUIZ_QUESTIONS: QuizQuestion[] = [
@@ -20,6 +22,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'To send you funny memes',
     ],
     correctAnswer: 1,
+    explanation: 'Phishing attacks are designed to trick you into revealing sensitive information like passwords, credit card numbers, or personal data. Attackers use deceptive emails and websites to steal this information.',
   },
   {
     question: 'Which of the following is a common sign of a phishing email?',
@@ -30,6 +33,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'Personalized greeting',
     ],
     correctAnswer: 2,
+    explanation: 'Phishing emails often use urgent language, threats, or create a sense of panic to pressure you into acting quickly without thinking. Legitimate companies rarely use such tactics.',
   },
   {
     question: 'What should you do if you receive a suspicious email with a link?',
@@ -40,6 +44,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'Forward it to a friend',
     ],
     correctAnswer: 2,
+    explanation: 'The safest action is to delete or report suspicious emails. Never click links or reply to suspicious emails, as this can confirm your email address is active and lead to more attacks.',
   },
   {
     question: 'Which of these is an example of a phishing message?',
@@ -50,6 +55,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'Welcome to our newsletter.',
     ],
     correctAnswer: 1,
+    explanation: 'Messages that threaten account lockout or use urgent language to pressure immediate action are classic phishing tactics. Legitimate companies don\'t threaten to lock accounts via email.',
   },
   {
     question: 'What type of website might a phishing link take you to?',
@@ -60,6 +66,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'A weather forecast',
     ],
     correctAnswer: 1,
+    explanation: 'Phishing links often lead to fake websites designed to look like legitimate sites (banks, social media, etc.) to trick you into entering your credentials.',
   },
   {
     question: 'Which part of an email should you always double-check to spot phishing?',
@@ -70,6 +77,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'Signature image',
     ],
     correctAnswer: 1,
+    explanation: 'Always check the sender\'s email address carefully. Phishing emails often use similar-looking domains (e.g., "amazon-verify.com" instead of "amazon.com") to trick you.',
   },
   {
     question: 'What is "spear phishing"?',
@@ -80,6 +88,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'A password recovery method',
     ],
     correctAnswer: 1,
+    explanation: 'Spear phishing is a targeted attack where the attacker researches their victim and creates personalized, convincing emails. It\'s more dangerous than generic phishing because it\'s tailored to the victim.',
   },
   {
     question: "What does a padlock icon in your browser's address bar mean?",
@@ -90,6 +99,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'The site is government-approved',
     ],
     correctAnswer: 1,
+    explanation: 'A padlock only means the connection is encrypted (HTTPS), not that the site is legitimate. Phishing sites can also use HTTPS, so always verify the domain name matches the real company.',
   },
   {
     question: 'If a message says "You\'ve won a prize!", what should you do first?',
@@ -100,6 +110,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'Reply "Thank you"',
     ],
     correctAnswer: 2,
+    explanation: 'Always verify the legitimacy of prize notifications. Legitimate contests don\'t ask for payment or personal information upfront. If it seems too good to be true, it probably is.',
   },
   {
     question: 'Which of these actions helps you avoid phishing scams?',
@@ -110,6 +121,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
       'Ignoring software updates',
     ],
     correctAnswer: 0,
+    explanation: 'Using strong, unique passwords for each account helps protect you even if one account is compromised. Never share passwords, and be cautious with links and updates.',
   },
 ];
 
@@ -123,7 +135,9 @@ interface VerdictModalProps {
   mlReasons?: string[];
   mlTokens?: string[];
   showRecapQuiz?: boolean;
+  consecutiveWrongs?: number;
   unlockedBadges?: string[];
+  isPhish?: boolean; // Actual answer from database
   onClose: () => void;
   onNext: () => void;
   onQuizComplete?: () => void;
@@ -139,7 +153,9 @@ export default function VerdictModal({
   mlReasons,
   mlTokens,
   showRecapQuiz = false,
+  consecutiveWrongs = 0,
   unlockedBadges,
+  isPhish,
   onClose,
   onNext,
   onQuizComplete,
@@ -147,10 +163,16 @@ export default function VerdictModal({
   const [selectedQuizAnswer, setSelectedQuizAnswer] = useState<number | null>(null);
   const [quizAnswered, setQuizAnswered] = useState(false);
   const [quizCorrect, setQuizCorrect] = useState(false);
+  const [quizExplanationShown, setQuizExplanationShown] = useState(false);
+
+  // Show quiz after every wrong answer
+  const showQuiz = !isCorrect;
+  // Show embedded video after 3 consecutive wrong answers
+  const showVideo = consecutiveWrongs >= 3 && !isCorrect;
 
   const currentQuiz = useMemo(() => {
     return QUIZ_QUESTIONS[Math.floor(Math.random() * QUIZ_QUESTIONS.length)];
-  }, [showRecapQuiz]);
+  }, [isOpen, !isCorrect]);
 
   useEffect(() => {
     if (isOpen) {
@@ -164,32 +186,34 @@ export default function VerdictModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (showRecapQuiz && isOpen) {
+    if (isOpen && !isCorrect) {
       setSelectedQuizAnswer(null);
       setQuizAnswered(false);
       setQuizCorrect(false);
+      setQuizExplanationShown(false);
     }
-  }, [showRecapQuiz, isOpen]);
+  }, [isOpen, isCorrect]);
 
   const handleQuizAnswer = (answerIndex: number) => {
     if (quizAnswered) return;
     setSelectedQuizAnswer(answerIndex);
-    const isCorrect = answerIndex === currentQuiz.correctAnswer;
-    setQuizCorrect(isCorrect);
+    const isCorrectAnswer = answerIndex === currentQuiz.correctAnswer;
+    setQuizCorrect(isCorrectAnswer);
     setQuizAnswered(true);
-    if (onQuizComplete) {
-      onQuizComplete();
-    }
+    // Show explanation immediately (no delay needed)
+    setQuizExplanationShown(true);
   };
 
-  const canProceed = !showRecapQuiz || quizAnswered;
+  // Allow proceeding if no quiz is shown, or if quiz is answered
+  // Also allow if video is shown (video doesn't require quiz answer)
+  const canProceed = !showQuiz || showVideo || quizAnswered;
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <Card className="w-full max-w-2xl border-2 border-[#f5f0e6] bg-white/95 backdrop-blur-sm shadow-2xl">
-        <CardHeader>
+      <Card className="flex h-[90vh] max-h-[800px] w-full max-w-2xl flex-col border-2 border-[#f5f0e6] bg-white/95 backdrop-blur-sm shadow-2xl">
+        <CardHeader className="shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-2xl font-bold text-[#1b2a49]">
               {isCorrect ? 'Correct!' : 'Incorrect'}
@@ -205,7 +229,7 @@ export default function VerdictModal({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto">
           <div
             className={`rounded-xl p-4 ${
               isCorrect
@@ -217,20 +241,28 @@ export default function VerdictModal({
           </div>
 
           {unlockedBadges && unlockedBadges.length > 0 && (
-            <div className="rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-[#1b2a49] flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300 p-4 animate-pulse">
+              <div className="flex items-center justify-center mb-2">
+                <span className="text-4xl animate-bounce">🎉</span>
+              </div>
+              <h3 className="mb-3 text-sm font-semibold text-[#1b2a49] flex items-center justify-center gap-2">
                 <span className="text-xl">🏆</span>
                 New Badge{unlockedBadges.length > 1 ? 's' : ''} Unlocked!
               </h3>
-              <div className="flex flex-wrap gap-2">
-                {unlockedBadges.map((badge, index) => (
-                  <span
-                    key={index}
-                    className="rounded-full bg-yellow-200 px-4 py-2 text-sm font-semibold text-[#1b2a49] border-2 border-yellow-400 shadow-sm"
-                  >
-                    {badge}
-                  </span>
-                ))}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {unlockedBadges.map((badgeId, index) => {
+                  const badge = getBadgeById(badgeId);
+                  if (!badge) return null;
+                  return (
+                    <span
+                      key={index}
+                      className="inline-flex items-center gap-1 rounded-full bg-yellow-200 px-4 py-2 text-sm font-semibold text-[#1b2a49] border-2 border-yellow-400 shadow-sm"
+                    >
+                      <span>{badge.icon}</span>
+                      <span>{badge.name}</span>
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -259,12 +291,49 @@ export default function VerdictModal({
                 Model Assist
               </h3>
               <div className="mb-3">
-                <span className="text-sm text-[#1b2a49]/70">
-                  Phishing probability:{' '}
-                </span>
-                <span className="text-lg font-semibold text-[#1b2a49]">
-                  {Math.round(mlProbPhish * 100)}%
-                </span>
+                {(() => {
+                  // Determine if email is actually phishing (explicit boolean check)
+                  // Handle boolean, undefined, or null values
+                  if (isPhish === true) {
+                    // Email is actually phishing - show phishing probability
+                    return (
+                      <>
+                        <span className="text-sm text-[#1b2a49]/70">
+                          Phishing probability:{' '}
+                        </span>
+                        <span className="text-lg font-semibold text-[#1b2a49]">
+                          {Math.round(mlProbPhish * 100)}%
+                        </span>
+                      </>
+                    );
+                  } else if (isPhish === false) {
+                    // Email is actually real - show "not phishing" probability (inverted)
+                    // If model says 90% phishing, show "Not phishing: 10%"
+                    const notPhishingProb = Math.round((1 - mlProbPhish) * 100);
+                    return (
+                      <>
+                        <span className="text-sm text-[#1b2a49]/70">
+                          Not phishing:{' '}
+                        </span>
+                        <span className="text-lg font-semibold text-[#1b2a49]">
+                          {notPhishingProb}%
+                        </span>
+                      </>
+                    );
+                  } else {
+                    // Fallback if isPhish is undefined/null - show raw probability
+                    return (
+                      <>
+                        <span className="text-sm text-[#1b2a49]/70">
+                          Phishing probability:{' '}
+                        </span>
+                        <span className="text-lg font-semibold text-[#1b2a49]">
+                          {Math.round(mlProbPhish * 100)}%
+                        </span>
+                      </>
+                    );
+                  }
+                })()}
               </div>
               {mlReasons && mlReasons.length > 0 && (
                 <div className="mb-2">
@@ -298,52 +367,51 @@ export default function VerdictModal({
             </div>
           )}
 
-          {showRecapQuiz && !isCorrect && (
-            <div className="space-y-4">
-              <div className="rounded-xl border-2 border-[#f5f0e6] bg-[#f5f0e6]/50 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#1b2a49]/10">
-                    <svg
-                      className="h-3 w-3 text-[#1b2a49]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="mb-3 text-sm leading-relaxed text-[#1b2a49]">
-                      Looks like you've missed a few in a row — take a quick recap to strengthen your phishing awareness!
-                    </p>
-                    <div className="space-y-2">
-                      <a
-                        href="https://www.youtube.com/watch?v=sg0kQYvTlnc"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-sm font-medium text-[#1b2a49] underline hover:text-[#2e4e3f] transition-colors"
-                      >
-                        Watch: Phishing Awareness Video 1
-                      </a>
-                      <a
-                        href="https://www.youtube.com/watch?v=fow7C_0EoRs"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-sm font-medium text-[#1b2a49] underline hover:text-[#2e4e3f] transition-colors"
-                      >
-                        Watch: Phishing Awareness Video 2
-                      </a>
-                    </div>
+          {/* Show embedded video after 3 consecutive wrong answers */}
+          {showVideo && (
+            <div className="rounded-xl border-2 border-[#f5f0e6] bg-[#f5f0e6]/50 p-4">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#1b2a49]/10">
+                  <svg
+                    className="h-3 w-3 text-[#1b2a49]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="mb-3 text-sm leading-relaxed text-[#1b2a49] font-medium">
+                    Looks like you've missed a few in a row — take a quick recap to strengthen your phishing awareness!
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="mb-2 text-xs font-medium text-[#1b2a49]/70">Phishing Awareness Video 1</p>
+                  <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                    <iframe
+                      className="absolute top-0 left-0 w-full h-full rounded-lg"
+                      src="https://www.youtube.com/embed/sg0kQYvTlnc"
+                      title="Phishing Awareness Video 1"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              <div className="rounded-xl border-2 border-[#dbeafe] bg-[#dbeafe]/30 p-4">
+          {/* Show quiz after every wrong answer (but not if video is showing) */}
+          {showQuiz && !showVideo && (
+            <div className="rounded-xl border-2 border-[#dbeafe] bg-[#dbeafe]/30 p-4">
                 <h3 className="mb-4 text-base font-semibold text-[#1b2a49]">
                   Quick Quiz Question
                 </h3>
@@ -378,17 +446,27 @@ export default function VerdictModal({
                         onClick={() => !quizAnswered && handleQuizAnswer(index)}
                       >
                         <div className="flex items-center gap-3">
-                          <input
-                            type="radio"
-                            name="quiz-answer"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            disabled={quizAnswered}
-                            className="h-4 w-4 cursor-pointer text-[#1b2a49]"
-                          />
-                          <span>{option}</span>
+                          <div className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                            <input
+                              type="radio"
+                              name="quiz-answer"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              disabled={quizAnswered}
+                              className="h-5 w-5 cursor-pointer appearance-none rounded-full border-2 border-[#1b2a49]/30 bg-transparent text-[#1b2a49] focus:ring-2 focus:ring-[#1b2a49] focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+                              style={{
+                                cursor: quizAnswered ? 'not-allowed' : 'pointer',
+                                backgroundColor: isSelected ? '#1b2a49' : 'transparent',
+                                backgroundImage: isSelected ? 'radial-gradient(circle, white 35%, transparent 35%)' : 'none',
+                              }}
+                            />
+                            {showFeedback && isCorrectAnswer && (
+                              <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#2e4e3f] border-2 border-white shadow-sm" />
+                            )}
+                          </div>
+                          <span className="flex-1 text-sm">{option}</span>
                           {showFeedback && isCorrectAnswer && (
-                            <span className="ml-auto text-[#2e4e3f] font-semibold">(Correct)</span>
+                            <span className="ml-auto text-[#2e4e3f] font-semibold text-sm">(Correct)</span>
                           )}
                         </div>
                       </label>
@@ -396,19 +474,23 @@ export default function VerdictModal({
                   })}
                 </div>
                 {quizAnswered && (
-                  <div className={`mt-4 rounded-lg p-3 ${quizCorrect ? 'bg-[#2e4e3f]/10 border-2 border-[#2e4e3f]/30' : 'bg-red-50 border-2 border-red-200'}`}>
-                    <p className={`text-sm font-medium ${quizCorrect ? 'text-[#2e4e3f]' : 'text-red-800'}`}>
+                  <div className={`mt-4 rounded-lg p-4 ${quizCorrect ? 'bg-[#2e4e3f]/10 border-2 border-[#2e4e3f]/30' : 'bg-red-50 border-2 border-red-200'}`}>
+                    <p className={`text-sm font-semibold mb-2 ${quizCorrect ? 'text-[#2e4e3f]' : 'text-red-800'}`}>
                       {quizCorrect
-                        ? 'Correct!'
-                        : `Incorrect. The correct answer is: ${currentQuiz.options[currentQuiz.correctAnswer]}`}
+                        ? '✓ Correct!'
+                        : `✗ Incorrect. The correct answer is: "${currentQuiz.options[currentQuiz.correctAnswer]}"`}
+                    </p>
+                    <p className={`text-sm leading-relaxed ${quizCorrect ? 'text-[#1b2a49]' : 'text-red-700'}`}>
+                      {currentQuiz.explanation}
                     </p>
                   </div>
                 )}
-              </div>
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
+        </CardContent>
+        <div className="shrink-0 border-t border-[#f5f0e6] bg-white/95 p-4">
+          <div className="flex justify-end gap-3">
             <Button
               onClick={onClose}
               variant="outline"
@@ -424,7 +506,7 @@ export default function VerdictModal({
               Next Question
             </Button>
           </div>
-        </CardContent>
+        </div>
       </Card>
     </div>
   );
