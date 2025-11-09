@@ -55,9 +55,9 @@ export default function PlayPage() {
     setLoading(true);
     setError(null);
     try {
-      // Add timeout to prevent hanging
+      // Add timeout to prevent hanging (increased to 35s to allow for email generation)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35 second timeout
 
       const response = await fetch('/api/emails/next', {
         headers: {
@@ -95,10 +95,10 @@ export default function PlayPage() {
       const data = await response.json();
       console.log('Email response:', data); // Debug log
 
-      // Only redirect to leaderboard if explicitly done
+      // Only show error if explicitly done (after auto-generation attempt)
       if (data.done === true) {
-        // Show error message - user can click button to generate emails
-        console.log('📭 No more emails available (done: true)');
+        // This means auto-generation was attempted but no new emails were available
+        console.log('📭 No more emails available after auto-generation (done: true)');
         setError('No more emails available. All emails have been completed!');
         setLoading(false);
         return;
@@ -353,7 +353,12 @@ export default function PlayPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+        <div className="text-center">
+          <p className="text-zinc-600 dark:text-zinc-400 mb-2">Loading email...</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-500">
+            {error?.includes('Generating') ? 'Generating new emails...' : 'This may take a moment if generating new emails'}
+          </p>
+        </div>
       </div>
     );
   }

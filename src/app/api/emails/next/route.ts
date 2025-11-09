@@ -215,26 +215,60 @@ export async function GET(request: Request) {
     );
 
     // Filter out emails the user has already seen
-    const unseenEmails = (finalEmails || []).filter(
+    let unseenEmails = (finalEmails || []).filter(
       (email) => !guessedEmailIds.has(email.id)
     );
 
-    // Auto-generate more emails if user has seen most/all emails
-    if (unseenEmails.length < 5) {
-      // Generate more emails in the background (non-blocking)
+    // Auto-generate more emails if user has seen most/all emails (background, non-blocking)
+    if (unseenEmails.length > 0 && unseenEmails.length < 5) {
+      // Generate more emails in the background to keep the pool filled
       autoGenerateEmails(20).catch(err => {
         console.error('Background email generation failed:', err);
       });
     }
 
+    // If no unseen emails, automatically generate and wait for them
     if (unseenEmails.length === 0) {
-      // Try to auto-generate more emails in background
-      autoGenerateEmails(20).catch(err => {
-        console.error('Background email generation failed:', err);
-      });
+      console.log('📭 No unseen emails available, auto-generating...');
       
-      // Return done immediately - don't wait for generation
-      return NextResponse.json({ done: true });
+      try {
+        // Wait for email generation to complete (with timeout)
+        const generationPromise = autoGenerateEmails(20);
+        const timeoutPromise = new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('Auto-generation timeout')), 25000)
+        );
+        
+        await Promise.race([generationPromise, timeoutPromise]);
+        console.log('✅ Auto-generation completed, refetching emails...');
+        
+        // Refetch emails after generation
+        const { data: refetchedEmails, error: refetchError } = await supabase
+          .from('emails')
+          .select('id, subject, from_name, from_email, body_html, is_phish, features, explanation, difficulty');
+        
+        if (refetchError) {
+          console.error('❌ Failed to refetch emails after generation:', refetchError);
+          return NextResponse.json({ done: true });
+        }
+        
+        // Filter out emails the user has already seen
+        const newUnseenEmails = (refetchedEmails || []).filter(
+          (email) => !guessedEmailIds.has(email.id)
+        );
+        
+        if (newUnseenEmails.length > 0) {
+          console.log(`✅ Found ${newUnseenEmails.length} new unseen emails after generation`);
+          // Continue with email selection logic below
+          unseenEmails = newUnseenEmails;
+        } else {
+          console.log('⚠️ No new unseen emails after generation');
+          return NextResponse.json({ done: true });
+        }
+      } catch (error) {
+        console.error('❌ Auto-generation failed or timed out:', error);
+        // Return done if generation fails - user will need to manually retry
+        return NextResponse.json({ done: true });
+      }
     }
 
     // Difficulty weighting: prefer easy emails first, then medium, then hard
