@@ -9,8 +9,8 @@ export function Navbar() {
   const router = useRouter();
   const { profile, loading } = useProfileContext();
 
-  // Don't show navbar on landing page or auth page
-  if (pathname === '/' || pathname === '/auth') {
+  // Don't show navbar on landing page, auth page, or about page
+  if (pathname === '/' || pathname === '/auth' || pathname === '/about') {
     return null;
   }
 

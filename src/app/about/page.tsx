@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 
 export default function AboutPage() {
   const [consentChecked, setConsentChecked] = useState(false);
@@ -16,34 +15,6 @@ export default function AboutPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#dbeafe]">
-      <nav className="border-b-2 border-[#f5f0e6] bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-8">
-          <Link href="/" className="text-xl font-bold text-[#1b2a49]">
-            PhishGuard
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/play"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Play
-            </Link>
-            <Link
-              href="/leaderboard"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Leaderboard
-            </Link>
-            <Link
-              href="/resources"
-              className="text-sm text-[#1b2a49]/70 hover:text-[#1b2a49] font-medium transition-colors"
-            >
-              Resources
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       <main className="mx-auto max-w-4xl px-4 py-12">
         <div className="space-y-8">
           {/* Section 1: What is Phishing */}
