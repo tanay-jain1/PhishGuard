@@ -73,8 +73,8 @@ export async function POST(request: Request) {
           from_name: from_name || null,
         });
 
-        // Only include ML results if we have meaningful insights (reasons or tokens)
-        // Probability alone isn't enough - we need the detailed analysis
+        // Include ML results if we have meaningful insights
+        // We require either reasons OR tokens to show Model Assist
         const hasReasons = mlResult.reasons && mlResult.reasons.length > 0;
         const hasTokens = mlResult.topTokens && mlResult.topTokens.length > 0;
 
@@ -84,10 +84,17 @@ export async function POST(request: Request) {
             reasons: mlResult.reasons,
             topTokens: mlResult.topTokens,
           };
+          console.log('ML classification successful:', {
+            prob_phish: mlResult.prob_phish,
+            reasonsCount: mlResult.reasons?.length || 0,
+            tokensCount: mlResult.topTokens?.length || 0,
+          });
         } else {
-          // ML returned probability but no insights - likely a failure
+          // ML returned probability but no insights - log for debugging
           console.warn('ML returned probability but no reasons/tokens - skipping ML section', {
             prob_phish: mlResult.prob_phish,
+            hasReasons: !!mlResult.reasons,
+            hasTokens: !!mlResult.topTokens,
           });
         }
       } catch (error) {
