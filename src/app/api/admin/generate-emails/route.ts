@@ -93,9 +93,21 @@ export async function POST(request: Request) {
     const count = Math.min(Math.max(1, Math.floor(requestedCount)), 20);
 
     // 4. Generate emails using bedrock
-    const items = await generateEmails(count);
+    let items: Awaited<ReturnType<typeof generateEmails>> = [];
+    try {
+      items = await generateEmails(count);
+    } catch (error) {
+      console.error('Email generation failed:', error);
+      return NextResponse.json(
+        { 
+          error: 'Email generation failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 500 }
+      );
+    }
 
-    if (items.length === 0) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'No emails generated' },
         { status: 500 }

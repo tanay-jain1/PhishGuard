@@ -22,8 +22,17 @@ async function autoGenerateEmails(count: number): Promise<void> {
     }
 
     // Generate emails using bedrock (or mock)
-    const items = await generateEmails(count);
-    if (items.length === 0) {
+    let items: Awaited<ReturnType<typeof generateEmails>> = [];
+    try {
+      items = await generateEmails(count);
+    } catch (error) {
+      console.error('Email generation failed:', error);
+      // Continue without auto-generation - don't break gameplay
+      return;
+    }
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.warn('Email generation returned no items');
       return;
     }
 
@@ -131,7 +140,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
 
     // Get all emails
-    let { data: allEmails, error: emailsError } = await supabase
+    const { data: allEmails, error: emailsError } = await supabase
       .from('emails')
       .select('id, subject, from_name, from_email, body_html, is_phish, features, explanation, difficulty');
 
@@ -143,6 +152,7 @@ export async function GET(request: Request) {
     }
 
     // Auto-generate emails if pool is empty or very low
+    let finalEmails = allEmails;
     if (!allEmails || allEmails.length === 0) {
       // Try to auto-generate emails
       try {
@@ -155,7 +165,7 @@ export async function GET(request: Request) {
         
         if (newEmails && newEmails.length > 0) {
           console.log(`✅ Auto-generated ${newEmails.length} emails, continuing...`);
-          allEmails = newEmails;
+          finalEmails = newEmails;
         } else {
           console.warn('⚠️ Auto-generation completed but no emails found');
           return NextResponse.json({ done: true });
@@ -185,7 +195,7 @@ export async function GET(request: Request) {
     );
 
     // Filter out emails the user has already seen
-    let unseenEmails = allEmails.filter(
+    let unseenEmails = (finalEmails || []).filter(
       (email) => !guessedEmailIds.has(email.id)
     );
 

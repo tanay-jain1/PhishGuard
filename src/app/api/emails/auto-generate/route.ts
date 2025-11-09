@@ -50,8 +50,21 @@ export async function POST(request: Request) {
     }
 
     // 4. Generate emails using bedrock (or mock)
-    const items = await generateEmails(count);
-    if (items.length === 0) {
+    let items: Awaited<ReturnType<typeof generateEmails>> = [];
+    try {
+      items = await generateEmails(count);
+    } catch (error) {
+      console.error('Email generation failed:', error);
+      return NextResponse.json(
+        { 
+          error: 'Email generation failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 500 }
+      );
+    }
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'No emails generated' },
         { status: 500 }
